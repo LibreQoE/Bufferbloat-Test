@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LibreQoS Bufferbloat Test</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo-container">
+                <img src="logo.svg" alt="LibreQoS Logo" class="logo">
+            </div>
+            <h1>LibreQoS Bufferbloat Test</h1>
+            <p>Measure your connection's latency under load</p>
+        </header>
+
+        <div class="test-container">
+            <div class="test-controls">
+                <button id="startTest" class="btn primary">Start Test</button>
+                <div id="testProgress" class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-labels">
+                        <span class="label baseline">Baseline</span>
+                        <span class="label download">Download</span>
+                        <span class="label upload">Upload</span>
+                        <span class="label cooldown">Cooldown</span>
+                    </div>
+                </div>
+                <div id="currentPhase">Ready to start</div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="latencyChart"></canvas>
+            </div>
+
+            <div id="results" class="results-container hidden">
+                <h2>Test Results</h2>
+                
+                <div class="grade-container">
+                    <div class="grade-box">
+                        <h3>Bufferbloat Grade</h3>
+                        <div id="finalGrade" class="grade"></div>
+                    </div>
+                </div>
+
+                <div class="stats-container">
+                    <div class="stats-box">
+                        <h3>Latency (ms)</h3>
+                        <table id="latencyStats" class="stats-table">
+                            <thead>
+                                <tr>
+                                    <th>Phase</th>
+                                    <th>Median</th>
+                                    <th>Average</th>
+                                    <th>25th %</th>
+                                    <th>75th %</th>
+                                    <th>95th %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Filled by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="stats-box">
+                        <h3>Throughput (Mbps)</h3>
+                        <table id="throughputStats" class="stats-table">
+                            <thead>
+                                <tr>
+                                    <th>Direction</th>
+                                    <th>Median</th>
+                                    <th>Average</th>
+                                    <th>25th %</th>
+                                    <th>75th %</th>
+                                    <th>95th %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Filled by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="additional-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Additional Latency Under Load:</span>
+                        <span id="additionalLatency" class="stat-value">-- ms</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>LibreQoS Bufferbloat Test - HTTP-only performance measurement</p>
+        </footer>
+    </div>
+
+    <!-- Load modules -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>

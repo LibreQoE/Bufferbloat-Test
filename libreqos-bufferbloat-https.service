@@ -1,0 +1,16 @@
+[Unit]
+Description=LibreQoS Bufferbloat Test Server (HTTPS)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/libreqos_bufferbloat_test
+ExecStart=/usr/bin/python3 /home/libreqos_bufferbloat_test/server/main.py --port 443 --ssl-keyfile /etc/letsencrypt/live/DOMAIN_NAME/privkey.pem --ssl-certfile /etc/letsencrypt/live/DOMAIN_NAME/fullchain.pem
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

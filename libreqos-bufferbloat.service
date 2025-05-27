@@ -1,0 +1,16 @@
+[Unit]
+Description=LibreQoS Bufferbloat Test Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/libreqos_bufferbloat_test
+ExecStart=/usr/bin/python3 /home/libreqos_bufferbloat_test/server/main.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

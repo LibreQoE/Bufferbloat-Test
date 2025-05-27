@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LibreQoS Bufferbloat Test - Component Test</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <style>
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: var(--secondary);
+            border-radius: 8px;
+        }
+        
+        .test-section h2 {
+            margin-top: 0;
+            color: var(--primary);
+        }
+        
+        .test-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .test-output {
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .mini-chart {
+            height: 200px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>LibreQoS Bufferbloat Test - Component Test</h1>
+            <p>Test individual components of the bufferbloat test</p>
+        </header>
+
+        <div class="test-section">
+            <h2>Latency Worker Test</h2>
+            <div class="test-buttons">
+                <button id="startLatencyWorker" class="btn primary">Start Worker</button>
+                <button id="stopLatencyWorker" class="btn primary">Stop Worker</button>
+            </div>
+            <div id="latencyOutput" class="test-output">Latency worker output will appear here...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>Chart Test</h2>
+            <div class="test-buttons">
+                <button id="addDataPoint" class="btn primary">Add Random Data Point</button>
+                <button id="resetChart" class="btn primary">Reset Chart</button>
+            </div>
+            <div class="mini-chart">
+                <canvas id="testChart"></canvas>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Download Test</h2>
+            <div class="test-buttons">
+                <button id="startDownload" class="btn primary">Start Download</button>
+                <button id="stopDownload" class="btn primary">Stop Download</button>
+            </div>
+            <div id="downloadOutput" class="test-output">Download output will appear here...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>Upload Test</h2>
+            <div class="test-buttons">
+                <button id="startUpload" class="btn primary">Start Upload</button>
+                <button id="stopUpload" class="btn primary">Stop Upload</button>
+            </div>
+            <div id="uploadOutput" class="test-output">Upload output will appear here...</div>
+        </div>
+
+        <footer>
+            <p>LibreQoS Bufferbloat Test - Component Test Page</p>
+        </footer>
+    </div>
+
+    <script type="module">
+        import { createLatencyChart, resetChart, addLatencyDataPoint } from './timelineChart.js';
+        import { startDownloadSaturation, startUploadSaturation, stopAllStreams } from './saturation.js';
+
+        // Latency worker test
+        let latencyWorker = null;
+        const latencyOutput = document.getElementById('latencyOutput');
+        
+        document.getElementById('startLatencyWorker').addEventListener('click', () => {
+            if (latencyWorker) return;
+            
+            latencyOutput.textContent = 'Starting latency worker...\n';
+            latencyWorker = new Worker('latencyWorker.js');
+            
+            latencyWorker.onmessage = (e) => {
+                const data = e.data;
+                let message = '';
+                
+                switch (data.type) {
+                    case 'latency':
+                        message = `Latency: ${data.rtt.toFixed(2)} ms`;
+                        break;
+                    case 'status':
+                        message = `Status: ${data.status}`;
+                        break;
+                    case 'error':
+                        message = `Error: ${data.error}`;
+                        break;
+                }
+                
+                latencyOutput.textContent += message + '\n';
+                latencyOutput.scrollTop = latencyOutput.scrollHeight;
+            };
+            
+            latencyWorker.postMessage({ command: 'start' });
+        });
+        
+        document.getElementById('stopLatencyWorker').addEventListener('click', () => {
+            if (!latencyWorker) return;
+            
+            latencyOutput.textContent += 'Stopping latency worker...\n';
+            latencyWorker.postMessage({ command: 'stop' });
+            latencyWorker.terminate();
+            latencyWorker = null;
+        });
+        
+        // Chart test
+        const chart = createLatencyChart('testChart');
+        let seconds = 0;
+        
+        document.getElementById('addDataPoint').addEventListener('click', () => {
+            const randomLatency = Math.random() * 100 + 20;
+            addLatencyDataPoint(chart, seconds, randomLatency);
+            seconds += 0.2;
+        });
+        
+        document.getElementById('resetChart').addEventListener('click', () => {
+            resetChart(chart);
+            seconds = 0;
+        });
+        
+        // Download test
+        const downloadOutput = document.getElementById('downloadOutput');
+        let downloadInterval = null;
+        let downloadStartTime = 0;
+        let lastDownloadBytes = 0;
+        
+        document.getElementById('startDownload').addEventListener('click', async () => {
+            downloadOutput.textContent = 'Starting download test...\n';
+            downloadStartTime = performance.now();
+            lastDownloadBytes = 0;
+            
+            await startDownloadSaturation();
+            
+            downloadInterval = setInterval(() => {
+                const throughput = window.saturationTestThroughput || 0;
+                const elapsed = ((performance.now() - downloadStartTime) / 1000).toFixed(1);
+                downloadOutput.textContent += `[${elapsed}s] Throughput: ${throughput.toFixed(2)} Mbps\n`;
+                downloadOutput.scrollTop = downloadOutput.scrollHeight;
+            }, 1000);
+        });
+        
+        document.getElementById('stopDownload').addEventListener('click', () => {
+            downloadOutput.textContent += 'Stopping download test...\n';
+            clearInterval(downloadInterval);
+            stopAllStreams();
+        });
+        
+        // Upload test
+        const uploadOutput = document.getElementById('uploadOutput');
+        let uploadInterval = null;
+        let uploadStartTime = 0;
+        
+        document.getElementById('startUpload').addEventListener('click', async () => {
+            uploadOutput.textContent = 'Starting upload test...\n';
+            uploadStartTime = performance.now();
+            
+            await startUploadSaturation();
+            
+            uploadInterval = setInterval(() => {
+                const throughput = window.saturationTestThroughput || 0;
+                const elapsed = ((performance.now() - uploadStartTime) / 1000).toFixed(1);
+                uploadOutput.textContent += `[${elapsed}s] Throughput: ${throughput.toFixed(2)} Mbps\n`;
+                uploadOutput.scrollTop = uploadOutput.scrollHeight;
+            }, 1000);
+        });
+        
+        document.getElementById('stopUpload').addEventListener('click', () => {
+            uploadOutput.textContent += 'Stopping upload test...\n';
+            clearInterval(uploadInterval);
+            stopAllStreams();
+        });
+        
+        // Expose for debugging
+        window.testChart = chart;
+    </script>
+</body>
+</html>
