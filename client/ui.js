@@ -9,7 +9,7 @@ const TEST_PHASES = {
     BASELINE: 'baseline',
     DOWNLOAD: 'download',
     UPLOAD: 'upload',
-    COOLDOWN: 'cooldown',
+    BIDIRECTIONAL: 'bidirectional',
     COMPLETE: 'complete'
 };
 
@@ -18,7 +18,7 @@ const PHASE_DURATIONS = {
     [TEST_PHASES.BASELINE]: 5,
     [TEST_PHASES.DOWNLOAD]: 10,
     [TEST_PHASES.UPLOAD]: 10,
-    [TEST_PHASES.COOLDOWN]: 5
+    [TEST_PHASES.BIDIRECTIONAL]: 5
 };
 
 // Total test duration in seconds
@@ -47,7 +47,7 @@ function initUI() {
         baseline: document.querySelector('.label.baseline'),
         download: document.querySelector('.label.download'),
         upload: document.querySelector('.label.upload'),
-        cooldown: document.querySelector('.label.cooldown')
+        bidirectional: document.querySelector('.label.cooldown') // Reuse the cooldown label element
     };
     
     // Add event listener to start button
@@ -119,13 +119,13 @@ function checkPhaseTransition(elapsedSeconds) {
         currentPhase = TEST_PHASES.UPLOAD;
         updatePhaseUI(TEST_PHASES.UPLOAD);
         notifyPhaseChange(TEST_PHASES.UPLOAD);
-    } else if (currentPhase === TEST_PHASES.UPLOAD && 
-               elapsedSeconds >= (PHASE_DURATIONS[TEST_PHASES.BASELINE] + 
-                                 PHASE_DURATIONS[TEST_PHASES.DOWNLOAD] + 
+    } else if (currentPhase === TEST_PHASES.UPLOAD &&
+               elapsedSeconds >= (PHASE_DURATIONS[TEST_PHASES.BASELINE] +
+                                 PHASE_DURATIONS[TEST_PHASES.DOWNLOAD] +
                                  PHASE_DURATIONS[TEST_PHASES.UPLOAD])) {
-        currentPhase = TEST_PHASES.COOLDOWN;
-        updatePhaseUI(TEST_PHASES.COOLDOWN);
-        notifyPhaseChange(TEST_PHASES.COOLDOWN);
+        currentPhase = TEST_PHASES.BIDIRECTIONAL;
+        updatePhaseUI(TEST_PHASES.BIDIRECTIONAL);
+        notifyPhaseChange(TEST_PHASES.BIDIRECTIONAL);
     }
 }
 
@@ -154,8 +154,8 @@ function updatePhaseUI(phase) {
         case TEST_PHASES.UPLOAD:
             currentPhaseElement.textContent = 'Testing upload saturation...';
             break;
-        case TEST_PHASES.COOLDOWN:
-            currentPhaseElement.textContent = 'Cooldown phase...';
+        case TEST_PHASES.BIDIRECTIONAL:
+            currentPhaseElement.textContent = 'Testing bidirectional saturation...';
             break;
         case TEST_PHASES.COMPLETE:
             currentPhaseElement.textContent = 'Test complete!';

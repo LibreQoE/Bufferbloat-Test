@@ -246,8 +246,15 @@ function measureDownloadThroughput() {
     // Calculate throughput in Mbps (megabits per second)
     const throughputMbps = (totalBytes * 8) / (elapsedSeconds * 1000000);
     
+    console.log(`Download throughput: ${throughputMbps.toFixed(2)} Mbps`);
+    
     // Store the measurement
     downloadThroughputData.push(throughputMbps);
+    
+    // Dispatch an event to notify about the new throughput measurement
+    window.dispatchEvent(new CustomEvent('throughput:download', {
+        detail: { throughput: throughputMbps }
+    }));
 }
 
 /**
@@ -274,6 +281,11 @@ function measureUploadThroughput() {
     
     // Store the measurement
     uploadThroughputData.push(throughputMbps);
+    
+    // Dispatch an event to notify about the new throughput measurement
+    window.dispatchEvent(new CustomEvent('throughput:upload', {
+        detail: { throughput: throughputMbps }
+    }));
 }
 
 /**
@@ -316,9 +328,173 @@ function getUploadThroughputData() {
     return [...uploadThroughputData];
 }
 
+// Separate timing variables for bidirectional test
+let lastDownloadMeasurementTime = 0;
+let lastUploadMeasurementTime = 0;
+
+/**
+ * Start bidirectional saturation test (both download and upload simultaneously)
+ * @returns {Promise} Resolves when the test is started
+ */
+async function startBidirectionalSaturation() {
+    console.log("Starting bidirectional saturation test");
+    
+    // Use 2 streams for each direction to stay within browser connection limits (typically 6)
+    const BIDIRECTIONAL_STREAMS = 2;
+    
+    // Reset state without stopping existing streams
+    downloadThroughputData = [];
+    uploadThroughputData = [];
+    bytesReceived = new Array(BIDIRECTIONAL_STREAMS).fill(0);
+    bytesSent = new Array(BIDIRECTIONAL_STREAMS).fill(0);
+    
+    // Clear any existing timer
+    if (throughputTimer) {
+        clearInterval(throughputTimer);
+    }
+    
+    // Initialize separate timing variables
+    lastDownloadMeasurementTime = performance.now();
+    lastUploadMeasurementTime = performance.now();
+    
+    // Start combined throughput measurement
+    throughputTimer = setInterval(() => {
+        // Measure both download and upload throughput with separate timing
+        measureBidirectionalDownloadThroughput();
+        measureBidirectionalUploadThroughput();
+    }, THROUGHPUT_INTERVAL);
+    
+    console.log(`Using ${BIDIRECTIONAL_STREAMS} streams each for download and upload (total: ${BIDIRECTIONAL_STREAMS * 2} connections) to avoid browser connection limits`);
+    
+    // Start download streams (2 streams)
+    for (let i = 0; i < BIDIRECTIONAL_STREAMS; i++) {
+        const streamIndex = i;
+        const controller = new AbortController();
+        const signal = controller.signal;
+        
+        downloadStreams[i] = {
+            controller: controller,
+            promise: fetch('/download', {
+                method: 'GET',
+                signal: signal,
+                cache: 'no-store',
+                headers: {
+                    'Pragma': 'no-cache',
+                    'Cache-Control': 'no-store'
+                }
+            }).then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                
+                const reader = response.body.getReader();
+                
+                // Process the stream
+                return readStream(reader, chunk => {
+                    bytesReceived[streamIndex] += chunk.length;
+                });
+            }).catch(error => {
+                if (error.name !== 'AbortError') {
+                    console.error(`Download stream ${streamIndex} error:`, error);
+                }
+            })
+        };
+    }
+    
+    // Create upload chunks
+    const uploadChunks = [];
+    for (let i = 0; i < UPLOAD_CHUNKS_PER_REQUEST; i++) {
+        const chunk = new Uint8Array(UPLOAD_CHUNK_SIZE);
+        crypto.getRandomValues(chunk);
+        uploadChunks.push(chunk);
+    }
+    
+    const totalBytes = UPLOAD_CHUNK_SIZE * UPLOAD_CHUNKS_PER_REQUEST;
+    console.log(`Created ${UPLOAD_CHUNKS_PER_REQUEST} upload chunks of ${UPLOAD_CHUNK_SIZE} bytes each (total: ${totalBytes} bytes)`);
+    
+    // Start upload streams (3 streams)
+    const promises = [];
+    for (let i = 0; i < BIDIRECTIONAL_STREAMS; i++) {
+        // Slight delay between starting streams to prevent initial congestion
+        await new Promise(resolve => setTimeout(resolve, 50));
+        promises.push(runUploadStream(i, uploadChunks));
+    }
+    
+    // Keep the upload running in the background
+    Promise.all(promises).catch(err => {
+        console.error("Upload stream error:", err);
+    });
+    
+    return Promise.resolve();
+}
+
+/**
+ * Measure download throughput for bidirectional test
+ * Uses separate timing variable to avoid interference
+ */
+function measureBidirectionalDownloadThroughput() {
+    const now = performance.now();
+    const elapsedSeconds = (now - lastDownloadMeasurementTime) / 1000;
+    lastDownloadMeasurementTime = now;
+    
+    if (elapsedSeconds <= 0) return;
+    
+    // Calculate total bytes received across all streams
+    const totalBytes = bytesReceived.reduce((sum, bytes) => sum + bytes, 0);
+    
+    // Reset byte counters for next measurement
+    bytesReceived = new Array(bytesReceived.length).fill(0);
+    
+    // Calculate throughput in Mbps (megabits per second)
+    const throughputMbps = (totalBytes * 8) / (elapsedSeconds * 1000000);
+    
+    console.log(`Download throughput: ${throughputMbps.toFixed(2)} Mbps`);
+    
+    // Store the measurement
+    downloadThroughputData.push(throughputMbps);
+    
+    // Dispatch an event to notify about the new throughput measurement
+    window.dispatchEvent(new CustomEvent('throughput:download', {
+        detail: { throughput: throughputMbps }
+    }));
+}
+
+/**
+ * Measure upload throughput for bidirectional test
+ * Uses separate timing variable to avoid interference
+ */
+function measureBidirectionalUploadThroughput() {
+    const now = performance.now();
+    const elapsedSeconds = (now - lastUploadMeasurementTime) / 1000;
+    lastUploadMeasurementTime = now;
+    
+    if (elapsedSeconds <= 0) return;
+    
+    // Calculate total bytes sent across all streams
+    const totalBytes = bytesSent.reduce((sum, bytes) => sum + bytes, 0);
+    
+    console.log(`Upload throughput measurement: ${totalBytes} bytes in ${elapsedSeconds.toFixed(3)}s`);
+    
+    // Reset byte counters for next measurement
+    bytesSent = new Array(bytesSent.length).fill(0);
+    
+    // Calculate throughput in Mbps (megabits per second)
+    const throughputMbps = (totalBytes * 8) / (elapsedSeconds * 1000000);
+    console.log(`Upload throughput: ${throughputMbps.toFixed(2)} Mbps`);
+    
+    // Store the measurement
+    uploadThroughputData.push(throughputMbps);
+    
+    // Dispatch an event to notify about the new throughput measurement
+    window.dispatchEvent(new CustomEvent('throughput:upload', {
+        detail: { throughput: throughputMbps }
+    }));
+}
+
 export {
     startDownloadSaturation,
     startUploadSaturation,
+    startBidirectionalSaturation,
     stopAllStreams,
     getDownloadThroughputData,
     getUploadThroughputData

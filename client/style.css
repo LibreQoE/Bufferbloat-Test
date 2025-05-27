@@ -12,7 +12,7 @@
     --baseline-color: #3498db;
     --download-color: #2ecc71;
     --upload-color: #e74c3c;
-    --cooldown-color: #f39c12;
+    --bidirectional-color: #9c27b0;
 }
 
 * {
@@ -142,7 +142,7 @@ header h1 {
 }
 
 .label.cooldown {
-    color: var(--cooldown-color);
+    color: var(--bidirectional-color);
 }
 
 .label.active {
@@ -159,7 +159,15 @@ header h1 {
 
 .chart-container {
     height: 400px;
-    margin: 20px 0;
+    margin: 20px 0 10px 0;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 10px;
+}
+
+.throughput-chart-container {
+    height: 200px;
+    margin: 10px 0 20px 0;
     background-color: rgba(255, 255, 255, 0.05);
     border-radius: 8px;
     padding: 10px;

@@ -14,7 +14,7 @@
             <div class="logo-container">
                 <img src="logo.svg" alt="LibreQoS Logo" class="logo">
             </div>
-            <h1>LibreQoS Bufferbloat Test</h1>
+            <h1>Bufferbloat Test</h1>
             <p>Measure your connection's latency under load</p>
         </header>
 
@@ -29,7 +29,7 @@
                         <span class="label baseline">Baseline</span>
                         <span class="label download">Download</span>
                         <span class="label upload">Upload</span>
-                        <span class="label cooldown">Cooldown</span>
+                        <span class="label cooldown">Bidirectional</span>
                     </div>
                 </div>
                 <div id="currentPhase">Ready to start</div>
@@ -37,6 +37,10 @@
 
             <div class="chart-container">
                 <canvas id="latencyChart"></canvas>
+            </div>
+            
+            <div class="throughput-chart-container">
+                <canvas id="throughputChart"></canvas>
             </div>
 
             <div id="results" class="results-container hidden">
@@ -99,7 +103,7 @@
         </div>
 
         <footer>
-            <p>LibreQoS Bufferbloat Test - HTTP-only performance measurement</p>
+            <p>LibreQoS Bufferbloat Test</p>
         </footer>
     </div>
 

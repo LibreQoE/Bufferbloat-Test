@@ -4,7 +4,9 @@
  */
 
 import { createLatencyChart, resetChart, addLatencyDataPoint } from './timelineChart.js';
-import { startDownloadSaturation, startUploadSaturation, stopAllStreams, 
+import { createThroughputChart, resetThroughputChart, updateThroughputChart,
+         addDownloadThroughputDataPoint, addUploadThroughputDataPoint } from './throughputChart.js';
+import { startDownloadSaturation, startUploadSaturation, startBidirectionalSaturation, stopAllStreams,
          getDownloadThroughputData, getUploadThroughputData } from './saturation.js';
 import { analyzeAndDisplayResults } from './results.js';
 import { initUI, startTestUI, TEST_PHASES, getCurrentPhase, getElapsedTime } from './ui.js';
@@ -14,16 +16,24 @@ const testData = {
     baselineLatency: [],
     downloadLatency: [],
     uploadLatency: [],
+    bidirectionalLatency: [], // Added bidirectional latency
     cooldownLatency: [],
-    downloadThroughput: [],
-    uploadThroughput: []
+    downloadThroughput: {
+        download: [],    // Download phase (5-15s)
+        bidirectional: [] // Bidirectional phase (25-30s)
+    },
+    uploadThroughput: {
+        upload: [],      // Upload phase (15-25s)
+        bidirectional: [] // Bidirectional phase (25-30s)
+    }
 };
 
 // Web Worker for latency measurements
 let latencyWorker = null;
 
-// Chart instance
+// Chart instances
 let latencyChart = null;
+let throughputChart = null;
 
 /**
  * Initialize the application
@@ -34,8 +44,9 @@ function init() {
     // Initialize UI
     initUI();
     
-    // Create latency chart
+    // Create charts
     latencyChart = createLatencyChart('latencyChart');
+    throughputChart = createThroughputChart('throughputChart');
     
     // Set up event listeners
     setupEventListeners();
@@ -50,6 +61,10 @@ function setupEventListeners() {
     window.addEventListener('test:phaseChange', handlePhaseChange);
     window.addEventListener('test:complete', handleTestComplete);
     
+    // Throughput measurement events
+    window.addEventListener('throughput:download', handleDownloadThroughput);
+    window.addEventListener('throughput:upload', handleUploadThroughput);
+    
     // Handle page unload
     window.addEventListener('beforeunload', cleanup);
 }
@@ -63,14 +78,24 @@ function handleTestStart() {
     // Reset test data
     resetTestData();
     
-    // Reset chart
+    // Reset charts
     resetChart(latencyChart);
+    resetThroughputChart(throughputChart);
     
     // Start the UI updates
     startTestUI();
     
     // Initialize and start the latency worker
     initLatencyWorker();
+    
+    // Start timer for adding zero values
+    if (zeroValuesTimer) {
+        clearInterval(zeroValuesTimer);
+    }
+    zeroValuesTimer = setInterval(() => {
+        addZeroDownloadValues();
+        addZeroUploadValues();
+    }, 200);
 }
 
 /**
@@ -91,9 +116,10 @@ function handlePhaseChange(event) {
             stopAllStreams();
             startUploadSaturation();
             break;
-        case TEST_PHASES.COOLDOWN:
-            // Stop upload saturation
+        case TEST_PHASES.BIDIRECTIONAL:
+            // Start both download and upload saturation simultaneously
             stopAllStreams();
+            startBidirectionalSaturation();
             break;
     }
 }
@@ -111,18 +137,115 @@ function handleTestComplete() {
         latencyWorker = null;
     }
     
+    // Stop zero values timer
+    if (zeroValuesTimer) {
+        clearInterval(zeroValuesTimer);
+        zeroValuesTimer = null;
+    }
+    
     // Stop any active streams
     stopAllStreams();
     
     // Get throughput data
-    testData.downloadThroughput = getDownloadThroughputData();
-    testData.uploadThroughput = getUploadThroughputData();
+    const allDownloadData = getDownloadThroughputData();
+    const allUploadData = getUploadThroughputData();
     
-    console.log('Download throughput data:', testData.downloadThroughput);
-    console.log('Upload throughput data:', testData.uploadThroughput);
+    // Split the data into phases
+    // Assuming the first 2/3 of download data is from download phase, last 1/3 from bidirectional
+    const downloadPhaseEnd = Math.floor(allDownloadData.length * 2/3);
+    testData.downloadThroughput.download = allDownloadData.slice(0, downloadPhaseEnd);
+    testData.downloadThroughput.bidirectional = allDownloadData.slice(downloadPhaseEnd);
+    
+    // Assuming the first 1/2 of upload data is from upload phase, last 1/2 from bidirectional
+    const uploadPhaseEnd = Math.floor(allUploadData.length * 1/2);
+    testData.uploadThroughput.upload = allUploadData.slice(0, uploadPhaseEnd);
+    testData.uploadThroughput.bidirectional = allUploadData.slice(uploadPhaseEnd);
+    
+    console.log('Download throughput data:', allDownloadData);
+    console.log('Upload throughput data:', allUploadData);
+    
+    // Combine data for the chart
+    const combinedDownloadData = [
+        ...testData.downloadThroughput.download,
+        ...testData.downloadThroughput.bidirectional
+    ];
+    
+    const combinedUploadData = [
+        ...testData.uploadThroughput.upload,
+        ...testData.uploadThroughput.bidirectional
+    ];
+    
+    // Update throughput chart configuration without redrawing the data
+    updateThroughputChart(throughputChart);
     
     // Analyze and display results
     analyzeAndDisplayResults(testData);
+}
+
+/**
+ * Handle download throughput event
+ * @param {CustomEvent} event - The throughput event
+ */
+function handleDownloadThroughput(event) {
+    const throughput = event.detail.throughput;
+    const elapsedTime = getElapsedTime();
+    const currentPhase = getCurrentPhase();
+    
+    // Store throughput data by phase
+    if (currentPhase === TEST_PHASES.DOWNLOAD) {
+        testData.downloadThroughput.download.push(throughput);
+    } else if (currentPhase === TEST_PHASES.BIDIRECTIONAL) {
+        testData.downloadThroughput.bidirectional.push(throughput);
+    }
+    
+    // Add data point to throughput chart
+    addDownloadThroughputDataPoint(throughputChart, elapsedTime, throughput);
+}
+
+/**
+ * Add zero values for download throughput during upload phase
+ * This prevents the line from "clinging" across phases
+ */
+function addZeroDownloadValues() {
+    if (getCurrentPhase() === TEST_PHASES.UPLOAD) {
+        const elapsedTime = getElapsedTime();
+        addDownloadThroughputDataPoint(throughputChart, elapsedTime, 0);
+    }
+}
+
+// Set up a timer to add zero values during inactive phases
+let zeroValuesTimer = null;
+
+/**
+ * Add zero values for upload throughput during non-upload phases
+ * This prevents the line from "clinging" across phases
+ */
+function addZeroUploadValues() {
+    const currentPhase = getCurrentPhase();
+    if (currentPhase === TEST_PHASES.BASELINE || currentPhase === TEST_PHASES.DOWNLOAD) {
+        const elapsedTime = getElapsedTime();
+        addUploadThroughputDataPoint(throughputChart, elapsedTime, 0);
+    }
+}
+
+/**
+ * Handle upload throughput event
+ * @param {CustomEvent} event - The throughput event
+ */
+function handleUploadThroughput(event) {
+    const throughput = event.detail.throughput;
+    const elapsedTime = getElapsedTime();
+    const currentPhase = getCurrentPhase();
+    
+    // Store throughput data by phase
+    if (currentPhase === TEST_PHASES.UPLOAD) {
+        testData.uploadThroughput.upload.push(throughput);
+    } else if (currentPhase === TEST_PHASES.BIDIRECTIONAL) {
+        testData.uploadThroughput.bidirectional.push(throughput);
+    }
+    
+    // Add data point to throughput chart
+    addUploadThroughputDataPoint(throughputChart, elapsedTime, throughput);
 }
 
 /**
@@ -179,6 +302,10 @@ function processLatencyMeasurement(latency) {
         case TEST_PHASES.UPLOAD:
             testData.uploadLatency.push(latency);
             break;
+        case TEST_PHASES.BIDIRECTIONAL:
+            // Add case for bidirectional phase
+            testData.bidirectionalLatency.push(latency);
+            break;
         case TEST_PHASES.COOLDOWN:
             testData.cooldownLatency.push(latency);
             break;
@@ -195,9 +322,16 @@ function resetTestData() {
     testData.baselineLatency = [];
     testData.downloadLatency = [];
     testData.uploadLatency = [];
+    testData.bidirectionalLatency = []; // Reset bidirectional latency
     testData.cooldownLatency = [];
-    testData.downloadThroughput = [];
-    testData.uploadThroughput = [];
+    testData.downloadThroughput = {
+        download: [],
+        bidirectional: []
+    };
+    testData.uploadThroughput = {
+        upload: [],
+        bidirectional: []
+    };
 }
 
 /**

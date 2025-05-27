@@ -97,17 +97,26 @@ function determineGrade(latencyIncrease) {
  * @param {Object} testData - Object containing test data
  */
 function analyzeAndDisplayResults(testData) {
-    const { baselineLatency, downloadLatency, uploadLatency, cooldownLatency, downloadThroughput, uploadThroughput } = testData;
+    const { baselineLatency, downloadLatency, uploadLatency, bidirectionalLatency, cooldownLatency, downloadThroughput, uploadThroughput } = testData;
     
     // Calculate latency statistics for each phase
     const baselineStats = calculateStats(baselineLatency);
     const downloadStats = calculateStats(downloadLatency);
     const uploadStats = calculateStats(uploadLatency);
-    const cooldownStats = calculateStats(cooldownLatency);
+    const bidirectionalStats = calculateStats(bidirectionalLatency); // Use bidirectional latency data
     
     // Calculate throughput statistics
-    const downloadThroughputStats = calculateStats(downloadThroughput);
-    const uploadThroughputStats = calculateStats(uploadThroughput);
+    const downloadThroughputStats = calculateStats(
+        Array.isArray(downloadThroughput) ?
+        downloadThroughput :
+        [...(downloadThroughput.download || []), ...(downloadThroughput.bidirectional || [])]
+    );
+    
+    const uploadThroughputStats = calculateStats(
+        Array.isArray(uploadThroughput) ?
+        uploadThroughput :
+        [...(uploadThroughput.upload || []), ...(uploadThroughput.bidirectional || [])]
+    );
     
     // Calculate additional latency under load using average values
     const downloadLatencyIncrease = downloadStats.average - baselineStats.average;
@@ -134,7 +143,7 @@ function analyzeAndDisplayResults(testData) {
     
     // Display the results
     displayGrade(finalGrade);
-    displayLatencyStats(baselineStats, downloadStats, uploadStats, cooldownStats);
+    displayLatencyStats(baselineStats, downloadStats, uploadStats, bidirectionalStats);
     displayThroughputStats(downloadThroughputStats, uploadThroughputStats);
     displayAdditionalLatency(maxLatencyIncrease);
     
@@ -157,9 +166,9 @@ function displayGrade(gradeInfo) {
  * @param {Object} baselineStats - Baseline latency statistics
  * @param {Object} downloadStats - Download latency statistics
  * @param {Object} uploadStats - Upload latency statistics
- * @param {Object} cooldownStats - Cooldown latency statistics
+ * @param {Object} bidirectionalStats - Bidirectional latency statistics
  */
-function displayLatencyStats(baselineStats, downloadStats, uploadStats, cooldownStats) {
+function displayLatencyStats(baselineStats, downloadStats, uploadStats, bidirectionalStats) {
     const tbody = document.querySelector('#latencyStats tbody');
     tbody.innerHTML = '';
     
@@ -167,7 +176,7 @@ function displayLatencyStats(baselineStats, downloadStats, uploadStats, cooldown
     addStatsRow(tbody, 'Baseline', baselineStats);
     addStatsRow(tbody, 'Download', downloadStats);
     addStatsRow(tbody, 'Upload', uploadStats);
-    addStatsRow(tbody, 'Cooldown', cooldownStats);
+    addStatsRow(tbody, 'Bidirectional', bidirectionalStats);
 }
 
 /**
