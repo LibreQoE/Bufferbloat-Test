@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
     <title>LibreQoS Bufferbloat Test</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
@@ -13,23 +14,48 @@
         <header>
             <div class="logo-container">
                 <img src="logo.svg" alt="LibreQoS Logo" class="logo">
+                <h1>LibreQoS Bufferbloat Test</h1>
+                <p>Measure your connection's latency under load</p>
             </div>
-            <h1>Bufferbloat Test</h1>
-            <p>Measure your connection's latency under load</p>
         </header>
 
         <div class="test-container">
             <div class="test-controls">
                 <button id="startTest" class="btn primary">Start Test</button>
-                <div id="testProgress" class="progress-container">
+                <div id="testProgress" class="stepper-container">
+                    <div class="stepper">
+                        <div class="step baseline">
+                            <div class="step-icon">✅</div>
+                            <div class="step-label">Baseline</div>
+                            <div class="step-connector"></div>
+                        </div>
+                        <div class="step download_warmup">
+                            <div class="step-icon">🧪</div>
+                            <div class="step-label">DL Warmup</div>
+                            <div class="step-connector"></div>
+                        </div>
+                        <div class="step download">
+                            <div class="step-icon">📥</div>
+                            <div class="step-label">Download</div>
+                            <div class="step-connector"></div>
+                        </div>
+                        <div class="step upload_warmup">
+                            <div class="step-icon">🧪</div>
+                            <div class="step-label">UL Warmup</div>
+                            <div class="step-connector"></div>
+                        </div>
+                        <div class="step upload">
+                            <div class="step-icon">📤</div>
+                            <div class="step-label">Upload</div>
+                            <div class="step-connector"></div>
+                        </div>
+                        <div class="step bidirectional">
+                            <div class="step-icon">🔄</div>
+                            <div class="step-label">Bidirectional</div>
+                        </div>
+                    </div>
                     <div class="progress-bar">
                         <div class="progress-fill"></div>
-                    </div>
-                    <div class="progress-labels">
-                        <span class="label baseline">Baseline</span>
-                        <span class="label download">Download</span>
-                        <span class="label upload">Upload</span>
-                        <span class="label cooldown">Bidirectional</span>
                     </div>
                 </div>
                 <div id="currentPhase">Ready to start</div>
@@ -48,8 +74,16 @@
                 
                 <div class="grade-container">
                     <div class="grade-box">
-                        <h3>Bufferbloat Grade</h3>
-                        <div id="finalGrade" class="grade"></div>
+                        <h3>Download Grade</h3>
+                        <div id="downloadGrade" class="grade"></div>
+                    </div>
+                    <div class="grade-box">
+                        <h3>Upload Grade</h3>
+                        <div id="uploadGrade" class="grade"></div>
+                    </div>
+                    <div class="grade-box">
+                        <h3>Bidirectional Grade</h3>
+                        <div id="bidirectionalGrade" class="grade"></div>
                     </div>
                 </div>
 
@@ -81,9 +115,7 @@
                                     <th>Direction</th>
                                     <th>Median</th>
                                     <th>Average</th>
-                                    <th>25th %</th>
                                     <th>75th %</th>
-                                    <th>95th %</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -95,18 +127,27 @@
 
                 <div class="additional-stats">
                     <div class="stat-item">
-                        <span class="stat-label">Additional Latency Under Load:</span>
-                        <span id="additionalLatency" class="stat-value">-- ms</span>
+                        <span class="stat-label">Download Latency Increase:</span>
+                        <span id="downloadLatencyIncrease" class="stat-value">-- ms</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Upload Latency Increase:</span>
+                        <span id="uploadLatencyIncrease" class="stat-value">-- ms</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Bidirectional Latency Increase:</span>
+                        <span id="bidirectionalLatencyIncrease" class="stat-value">-- ms</span>
                     </div>
                 </div>
             </div>
         </div>
 
         <footer>
-            <p>LibreQoS Bufferbloat Test</p>
+            <p>LibreQoS Bufferbloat Test<br>Built with <span class="heart">❤️</span> by <a href="https://libreqos.io" target="_blank" rel="noopener noreferrer">LibreQoS</a></p>
         </footer>
+        
     </div>
-
+    
     <!-- Load modules -->
     <script type="module" src="app.js"></script>
 </body>

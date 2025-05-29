@@ -13,7 +13,7 @@ LibreQoS Bufferbloat Test measures how your network connection performs under lo
 - **Background throughput sampling** for statistical analysis
 - **Clear visualization** of latency over time
 - **Comprehensive results** including bufferbloat grading (A+ to F)
-- **HTTP-only implementation** (no WebSockets)
+- **HTTP/2 support** for improved performance and connection multiplexing
 - **Dark theme UI** with LibreQoS branding
 
 ## Test Flow
@@ -23,7 +23,7 @@ The test runs as a single 30-second process divided into 4 sequential stages:
 1. **Baseline (0s-5s)**: Measures unloaded latency
 2. **Download Saturation (5s-15s)**: Observes latency under download load
 3. **Upload Saturation (15s-25s)**: Observes latency under upload load
-4. **Cooldown + Analysis (25s-30s)**: Ends the test and computes results
+4. **Bidirectional Saturation (25s-30s)**: Observes latency under simultaneous download and upload load
 
 ## Technical Implementation
 
@@ -37,8 +37,9 @@ The test runs as a single 30-second process divided into 4 sequential stages:
 ### Server
 
 - **Python FastAPI** backend for Ubuntu Server 22.04 or 24.04
-- **HTTP endpoints** for ping, download, and upload tests
+- **HTTP/2 support** with Hypercorn for multiplexed connections
 - **Efficient streaming** of binary data
+- **High concurrency** support for gigabit connection testing
 
 ## Bufferbloat Grading
 
@@ -65,7 +66,7 @@ server/
 ├── upload.py          # Upload endpoint for upstream saturation
 ├── __init__.py        # Python package marker
 ├── test_endpoints.py  # Test script for server endpoints
-└── requirements.txt   # Python dependencies
+└── requirements.txt   # Python dependencies with Hypercorn for HTTP/2
 
 client/
 ├── index.html         # Main HTML page
@@ -114,9 +115,9 @@ For production deployments, you can run the application as a systemd service:
 
 For more details, see the [Systemd Setup Guide](SYSTEMD_SETUP.md).
 
-### Setting Up HTTPS with Let's Encrypt
+### Setting Up HTTPS with HTTP/2 Support
 
-For secure access, you can set up HTTPS using Let's Encrypt certificates:
+For secure access with improved performance, you can set up HTTPS with HTTP/2 support using Let's Encrypt certificates:
 
 1. Use the provided HTTPS setup script:
    ```
@@ -125,10 +126,15 @@ For secure access, you can set up HTTPS using Let's Encrypt certificates:
 
 2. The script will:
    - Obtain Let's Encrypt certificates for your domain
-   - Configure the application to use HTTPS
+   - Configure the application to use HTTPS with HTTP/2 support
    - Set up automatic certificate renewal
 
-3. For manual setup or more details, see the [HTTPS Setup Guide](HTTPS_SETUP.md).
+3. HTTP/2 Benefits:
+   - **Connection Multiplexing**: Overcomes the browser's 6-connection limit
+   - **Higher Concurrency**: Supports hundreds of concurrent streams over a single connection
+   - **Better Performance**: Ideal for testing gigabit connections
+
+4. For manual setup or more details, see the [HTTPS Setup Guide](HTTPS_SETUP.md).
 
 ### Client Access
 
@@ -146,7 +152,8 @@ Replace `your-server-ip` with the IP address of your server or `yourdomain.examp
 
 ## Development
 
-- The server uses FastAPI's auto-reload feature for development
+- The server uses auto-reload feature for development
+- HTTP/2 support requires HTTPS (TLS) and the `--http2` flag
 - The client is served as static files by the FastAPI application
 - All client-side code uses ES modules for better organization
 

@@ -13,7 +13,26 @@ const CHART_CONFIG = {
             borderColor: '#ffffff',
             backgroundColor: 'rgba(255, 255, 255, 0.1)',
             borderWidth: 3,
-            pointRadius: 1,
+            pointRadius: function(context) {
+                // Make timeout points larger and more visible
+                const dataPoint = context.dataset.data[context.dataIndex];
+                return dataPoint && dataPoint.isTimeout ? 6 : 1; // Increased from 4 to 6 for better visibility
+            },
+            pointBackgroundColor: function(context) {
+                // Use LibreQoS Blue color for timeout points
+                const dataPoint = context.dataset.data[context.dataIndex];
+                return dataPoint && dataPoint.isTimeout ? 'rgba(75, 108, 151, 0.9)' : 'rgba(255, 255, 255, 0.8)';
+            },
+            pointBorderColor: function(context) {
+                // Use LibreQoS Blue border for timeout points
+                const dataPoint = context.dataset.data[context.dataIndex];
+                return dataPoint && dataPoint.isTimeout ? 'rgba(75, 108, 151, 1)' : 'rgba(255, 255, 255, 1)';
+            },
+            pointStyle: function(context) {
+                // Use triangle for timeout points to make them more distinctive
+                const dataPoint = context.dataset.data[context.dataIndex];
+                return dataPoint && dataPoint.isTimeout ? 'triangle' : 'circle';
+            },
             pointHoverRadius: 3,
             tension: 0.2
         }]
@@ -31,10 +50,17 @@ const CHART_CONFIG = {
                     color: '#ffffff'
                 },
                 min: 0,
-                max: 30,
+                max: 50,
                 ticks: {
                     color: '#ffffff',
-                    stepSize: 5
+                    stepSize: 10,
+                    maxRotation: 0,
+                    autoSkip: true,
+                    font: {
+                        size: function(context) {
+                            return window.innerWidth < 768 ? 10 : 12;
+                        }
+                    }
                 },
                 grid: {
                     color: 'rgba(255, 255, 255, 0.1)'
@@ -47,9 +73,21 @@ const CHART_CONFIG = {
                     color: '#ffffff'
                 },
                 min: 0,
-                suggestedMax: 100,
+                suggestedMax: 1200, // Ensure timeout values (1000ms) are visible
                 ticks: {
-                    color: '#ffffff'
+                    color: '#ffffff',
+                    font: {
+                        size: function(context) {
+                            return window.innerWidth < 768 ? 10 : 12;
+                        }
+                    },
+                    callback: function(value) {
+                        // On mobile, simplify large numbers
+                        if (window.innerWidth < 768 && value >= 1000) {
+                            return (value / 1000) + 'k';
+                        }
+                        return value;
+                    }
                 },
                 grid: {
                     color: 'rgba(255, 255, 255, 0.1)'
@@ -63,7 +101,23 @@ const CHART_CONFIG = {
                         return `Time: ${tooltipItems[0].parsed.x.toFixed(1)}s`;
                     },
                     label: function(context) {
-                        return `Latency: ${context.parsed.y.toFixed(1)} ms`;
+                        // Format latency value based on size
+                        const latency = context.parsed.y;
+                        let formattedLatency;
+                        
+                        if (latency < 10) {
+                            formattedLatency = latency.toFixed(1);
+                        } else {
+                            formattedLatency = Math.round(latency);
+                        }
+                        
+                        // Check if this is a timeout point
+                        const dataPoint = context.dataset.data[context.dataIndex];
+                        if (dataPoint && dataPoint.isTimeout) {
+                            return `Latency: ${formattedLatency} ms (TIMEOUT)`;
+                        }
+                        
+                        return `Latency: ${formattedLatency} ms`;
                     }
                 }
             },
@@ -85,15 +139,36 @@ const CHART_CONFIG = {
                             position: 'start',
                             color: 'rgba(52, 152, 219, 1)',
                             font: {
-                                size: 12,
+                                size: window.innerWidth < 768 ? 10 : 12,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    downloadWarmupRegion: {
+                        type: 'box',
+                        xMin: 5,
+                        xMax: 20,
+                        yMin: 0,
+                        yMax: 'max',
+                        backgroundColor: 'rgba(169, 223, 191, 0.2)',
+                        borderColor: 'rgba(169, 223, 191, 0.4)',
+                        borderWidth: 1,
+                        drawTime: 'beforeDatasetsDraw',
+                        label: {
+                            display: true,
+                            content: 'DL Warmup',
+                            position: 'start',
+                            color: 'rgba(169, 223, 191, 1)',
+                            font: {
+                                size: window.innerWidth < 768 ? 10 : 12,
                                 weight: 'bold'
                             }
                         }
                     },
                     downloadRegion: {
                         type: 'box',
-                        xMin: 5,
-                        xMax: 15,
+                        xMin: 20,
+                        xMax: 25,
                         yMin: 0,
                         yMax: 'max',
                         backgroundColor: 'rgba(46, 204, 113, 0.2)',
@@ -106,15 +181,36 @@ const CHART_CONFIG = {
                             position: 'start',
                             color: 'rgba(46, 204, 113, 1)',
                             font: {
-                                size: 12,
+                                size: window.innerWidth < 768 ? 10 : 12,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    uploadWarmupRegion: {
+                        type: 'box',
+                        xMin: 25,
+                        xMax: 40,
+                        yMin: 0,
+                        yMax: 'max',
+                        backgroundColor: 'rgba(245, 183, 177, 0.2)',
+                        borderColor: 'rgba(245, 183, 177, 0.4)',
+                        borderWidth: 1,
+                        drawTime: 'beforeDatasetsDraw',
+                        label: {
+                            display: true,
+                            content: 'UL Warmup',
+                            position: 'start',
+                            color: 'rgba(245, 183, 177, 1)',
+                            font: {
+                                size: window.innerWidth < 768 ? 10 : 12,
                                 weight: 'bold'
                             }
                         }
                     },
                     uploadRegion: {
                         type: 'box',
-                        xMin: 15,
-                        xMax: 25,
+                        xMin: 40,
+                        xMax: 45,
                         yMin: 0,
                         yMax: 'max',
                         backgroundColor: 'rgba(231, 76, 60, 0.2)',
@@ -127,15 +223,15 @@ const CHART_CONFIG = {
                             position: 'start',
                             color: 'rgba(231, 76, 60, 1)',
                             font: {
-                                size: 12,
+                                size: window.innerWidth < 768 ? 10 : 12,
                                 weight: 'bold'
                             }
                         }
                     },
                     bidirectionalRegion: {
                         type: 'box',
-                        xMin: 25,
-                        xMax: 30,
+                        xMin: 45,
+                        xMax: 50,
                         yMin: 0,
                         yMax: 'max',
                         backgroundColor: 'rgba(156, 39, 176, 0.2)',
@@ -148,7 +244,7 @@ const CHART_CONFIG = {
                             position: 'start',
                             color: 'rgba(156, 39, 176, 1)',
                             font: {
-                                size: 12,
+                                size: window.innerWidth < 768 ? 10 : 12,
                                 weight: 'bold'
                             }
                         }
@@ -195,18 +291,41 @@ function resetChart(chart) {
  * @param {number} seconds - The time in seconds
  * @param {number} latency - The latency value in ms
  */
-function addLatencyDataPoint(chart, seconds, latency) {
+function addLatencyDataPoint(chart, seconds, latency, isTimeout = false) {
     if (!chart) return;
     
-    chart.data.datasets[0].data.push({
+    // Add data point with different styling for timeout values
+    const dataPoint = {
         x: seconds,
         y: latency
-    });
+    };
     
-    // Adjust y-axis scale if needed
-    const maxLatency = Math.max(...chart.data.datasets[0].data.map(point => point.y));
-    if (maxLatency > chart.options.scales.y.suggestedMax) {
-        chart.options.scales.y.suggestedMax = Math.ceil(maxLatency / 100) * 100;
+    // If this is a timeout value, add special styling
+    if (isTimeout) {
+        // Add a custom property to identify timeout points
+        dataPoint.isTimeout = true;
+        
+        // This will be used in the pointBackgroundColor callback
+        console.log(`Adding timeout data point at ${seconds}s with latency ${latency}ms`);
+    }
+    
+    chart.data.datasets[0].data.push(dataPoint);
+    
+    // Ensure timeout values are always visible by setting a minimum suggestedMax
+    // This ensures the chart scale includes the timeout values
+    if (isTimeout || latency > 500) {
+        chart.options.scales.y.suggestedMax = Math.max(chart.options.scales.y.suggestedMax || 0, 1200);
+    }
+    
+    // Adjust y-axis scale if needed for non-timeout values
+    else {
+        const maxLatency = Math.max(...chart.data.datasets[0].data
+            .filter(point => !point.isTimeout)
+            .map(point => point.y));
+        
+        if (maxLatency > chart.options.scales.y.suggestedMax) {
+            chart.options.scales.y.suggestedMax = Math.ceil(maxLatency / 100) * 100;
+        }
     }
     
     chart.update();

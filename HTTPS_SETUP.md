@@ -1,6 +1,6 @@
-# Setting Up HTTPS with Let's Encrypt
+# Setting Up HTTPS with HTTP/2 Support
 
-This guide explains how to set up HTTPS for the LibreQoS Bufferbloat Test using Let's Encrypt certificates directly with the FastAPI application.
+This guide explains how to set up HTTPS with HTTP/2 support for the LibreQoS Bufferbloat Test using Let's Encrypt certificates and Hypercorn.
 
 ## Prerequisites
 
@@ -31,9 +31,9 @@ We've provided a script that automates the entire HTTPS setup process:
 3. The script will:
    - Install certbot if needed
    - Obtain Let's Encrypt certificates for your domain
-   - Configure the systemd service to use HTTPS
+   - Configure the systemd service to use HTTPS with HTTP/2 support
    - Set up automatic certificate renewal
-   - Start the HTTPS service
+   - Start the HTTPS service with HTTP/2 enabled
 
 4. Once complete, access your application at:
    ```
@@ -80,7 +80,7 @@ sudo certbot certonly --standalone -d yourdomain.example.com
    Type=simple
    User=root
    WorkingDirectory=/home/libreqos_bufferbloat_test
-   ExecStart=/usr/bin/python3 /home/libreqos_bufferbloat_test/server/main.py --port 443 --ssl-keyfile /etc/letsencrypt/live/yourdomain.example.com/privkey.pem --ssl-certfile /etc/letsencrypt/live/yourdomain.example.com/fullchain.pem
+   ExecStart=/usr/bin/python3 /home/libreqos_bufferbloat_test/server/main.py --port 443 --ssl-keyfile /etc/letsencrypt/live/yourdomain.example.com/privkey.pem --ssl-certfile /etc/letsencrypt/live/yourdomain.example.com/fullchain.pem --http2
    Restart=on-failure
    RestartSec=5
    StandardOutput=journal
@@ -118,6 +118,35 @@ Make it executable:
 sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/restart-libreqos.sh
 ```
 
+## HTTP/2 Support
+
+HTTP/2 provides significant performance improvements over HTTP/1.1, especially for the LibreQoS Bufferbloat Test:
+
+### Benefits of HTTP/2
+
+1. **Connection Multiplexing**: HTTP/2 allows multiple requests and responses to be sent over a single TCP connection simultaneously. This overcomes the browser's 6-connection limit per domain, enabling:
+   - Higher concurrency for upload and download tests
+   - Better saturation of gigabit connections
+   - More accurate bufferbloat measurements
+
+2. **Binary Protocol**: HTTP/2 uses a binary protocol instead of text, which is more efficient to parse and less error-prone.
+
+3. **Header Compression**: HTTP/2 compresses headers, reducing overhead.
+
+### How It Works
+
+The LibreQoS Bufferbloat Test uses Hypercorn as the ASGI server when HTTP/2 is enabled. Hypercorn supports HTTP/2 and provides the following configuration:
+
+- Up to 250 concurrent streams per connection (configurable)
+- Proper flow control to prevent overwhelming the client or server
+- Graceful fallback to HTTP/1.1 for older browsers
+
+### Requirements
+
+- HTTPS is required for HTTP/2 in browsers
+- The `--http2` flag must be passed to the server
+- The `hypercorn` and `h2` Python packages must be installed (included in requirements.txt)
+
 ## Certificate Auto-Renewal
 
 Let's Encrypt certificates are valid for 90 days. Certbot automatically installs a systemd timer to renew certificates before they expire.
@@ -154,6 +183,17 @@ sudo certbot renew --dry-run
 2. **Certificate not found**: Verify the paths in the service file match your actual certificate paths.
 
 3. **Permission denied**: Ensure the service is running as root or has proper permissions to access the certificate files.
+
+4. **HTTP/2 not working**: Verify that:
+   - You're using HTTPS (HTTP/2 requires TLS in browsers)
+   - The `--http2` flag is included in the service file
+   - You've installed the required dependencies (`pip install -r server/requirements.txt`)
+   - Your browser supports HTTP/2 (most modern browsers do)
+
+5. **Checking HTTP/2 status**: Use browser developer tools (Network tab) to verify the protocol being used, or use:
+   ```bash
+   curl -I --http2 https://yourdomain.example.com
+   ```
 
 ## Security Considerations
 

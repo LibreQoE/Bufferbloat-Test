@@ -10,7 +10,9 @@
     --success: #2ecc71;
     --warning: #f39c12;
     --baseline-color: #3498db;
+    --download-warmup-color: #a9dfbf;
     --download-color: #2ecc71;
+    --upload-warmup-color: #f5b7b1;
     --upload-color: #e74c3c;
     --bidirectional-color: #9c27b0;
 }
@@ -31,7 +33,14 @@ body {
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 20px 10px;
+    width: 100%;
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 10px 5px;
+    }
 }
 
 header {
@@ -42,19 +51,23 @@ header {
 }
 
 .logo-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     margin-bottom: 20px;
 }
 
 .logo {
-    max-width: 300px;
+    max-width: 225px; /* Reduced by 25% from 300px */
     height: auto;
     display: block;
-    margin: 0 auto;
+    margin: 0 auto 15px auto;
 }
 
-header h1 {
+.logo-container h1 {
     color: var(--text);
     margin-bottom: 10px;
+    text-align: center;
 }
 
 .test-container {
@@ -96,17 +109,136 @@ header h1 {
     cursor: not-allowed;
 }
 
-.progress-container {
+.stepper-container {
     width: 100%;
     margin: 20px 0;
 }
 
-.progress-bar {
-    height: 20px;
+.stepper {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    position: relative;
+}
+
+.step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+    flex: 1;
+}
+
+.step-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
     background-color: var(--background);
-    border-radius: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 5px;
+    font-size: 18px;
+    position: relative;
+    transition: all 0.3s ease;
+    opacity: 0.5;
+    border: 2px solid transparent;
+    filter: saturate(0%); /* Make inactive icons greyscale */
+    /* Make sure the background is fully opaque to hide the connector line */
+    box-shadow: 0 0 0 2px var(--background);
+}
+
+.step-label {
+    font-size: 12px;
+    font-weight: normal;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.7);
+    transition: all 0.3s ease;
+}
+
+.step-connector {
+    position: absolute;
+    top: 18px;
+    right: -50%;
+    width: 100%;
+    height: 2px;
+    background-color: transparent; /* Make connectors invisible by default */
+    z-index: -1;
+}
+
+/* Step colors */
+.step.baseline .step-icon {
+    border-color: var(--baseline-color);
+}
+
+.step.download_warmup .step-icon {
+    border-color: var(--download-warmup-color);
+}
+
+.step.download .step-icon {
+    border-color: var(--download-color);
+}
+
+.step.upload_warmup .step-icon {
+    border-color: var(--upload-warmup-color);
+}
+
+.step.upload .step-icon {
+    border-color: var(--upload-color);
+}
+
+.step.bidirectional .step-icon {
+    border-color: var(--bidirectional-color);
+}
+
+/* Active and completed states */
+.step.active .step-icon {
+    opacity: 1;
+    transform: scale(1.1);
+    background-color: var(--secondary);
+    filter: saturate(100%); /* Restore full color for active icon */
+    /* Maintain the opaque background with the new color */
+    box-shadow: 0 0 0 2px var(--secondary);
+}
+
+.step.active .step-label {
+    font-weight: bold;
+    color: var(--text);
+}
+
+.step.completed .step-icon {
+    opacity: 1;
+    background-color: var(--secondary);
+    filter: saturate(0%); /* Keep completed icons greyscale */
+    /* Maintain the opaque background */
+    box-shadow: 0 0 0 2px var(--secondary);
+}
+
+.step.completed .step-connector {
+    background-color: var(--primary);
+}
+
+/* Animation for completion */
+@keyframes completedStep {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+.step.just-completed .step-icon {
+    animation: completedStep 0.5s ease;
+    filter: saturate(0%); /* Keep just-completed icons greyscale */
+}
+
+/* Progress bar below stepper */
+.progress-bar {
+    height: 6px;
+    background-color: var(--background);
+    border-radius: 3px;
     overflow: hidden;
     position: relative;
+    margin-top: 5px;
 }
 
 .progress-fill {
@@ -116,38 +248,37 @@ header h1 {
     transition: width 0.2s;
 }
 
-.progress-labels {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 5px;
-    position: relative;
-    padding: 0 10px;
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .step-icon {
+        width: 30px;
+        height: 30px;
+        font-size: 14px;
+    }
+    
+    .step-label {
+        font-size: 10px;
+    }
+    
+    .step-connector {
+        top: 15px;
+    }
 }
 
-.label {
-    font-size: 12px;
-    position: relative;
-}
-
-.label.baseline {
-    color: var(--baseline-color);
-}
-
-.label.download {
-    color: var(--download-color);
-}
-
-.label.upload {
-    color: var(--upload-color);
-}
-
-.label.cooldown {
-    color: var(--bidirectional-color);
-}
-
-.label.active {
-    font-weight: bold;
-    text-decoration: underline;
+@media (max-width: 480px) {
+    .step-icon {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+    }
+    
+    .step-label {
+        font-size: 8px;
+    }
+    
+    .step-connector {
+        top: 12px;
+    }
 }
 
 #currentPhase {
@@ -188,16 +319,19 @@ header h1 {
 
 .grade-container {
     display: flex;
-    justify-content: center;
+    justify-content: space-around;
     margin-bottom: 30px;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
 .grade-box {
     text-align: center;
-    padding: 20px;
+    padding: 15px;
     background-color: var(--secondary);
     border-radius: 8px;
-    min-width: 200px;
+    min-width: 150px;
+    flex: 1;
 }
 
 .grade-box h3 {
@@ -207,6 +341,41 @@ header h1 {
 .grade {
     font-size: 48px;
     font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.approved-img {
+    width: 26px; /* Reduced by 25% from 35px (which was already reduced by 30% from 50px) */
+    height: auto;
+    margin-top: 5px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    animation: bounce-and-sparkle 2s infinite;
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.7));
+}
+
+@keyframes bounce-and-sparkle {
+    0% {
+        transform: translateY(0) scale(1);
+        filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.7));
+    }
+    25% {
+        transform: translateY(-5px) scale(1.1);
+        filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.9));
+    }
+    50% {
+        transform: translateY(0) scale(1);
+        filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.7));
+    }
+    75% {
+        transform: translateY(-3px) scale(1.05);
+        filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));
+    }
+    100% {
+        transform: translateY(0) scale(1);
+        filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.7));
+    }
 }
 
 .grade.a-plus {
@@ -242,10 +411,22 @@ header h1 {
 
 .stats-box {
     flex: 1;
-    min-width: 300px;
+    min-width: 250px;
     background-color: var(--secondary);
     border-radius: 8px;
     padding: 15px;
+    overflow-x: auto; /* Enable horizontal scrolling */
+}
+
+@media (max-width: 768px) {
+    .stats-container {
+        flex-direction: column;
+    }
+    
+    .stats-box {
+        width: 100%;
+        min-width: unset;
+    }
 }
 
 .stats-box h3 {
@@ -257,29 +438,65 @@ header h1 {
 .stats-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
 }
 
 .stats-table th,
 .stats-table td {
-    padding: 8px;
+    padding: 8px 4px;
     text-align: center;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    white-space: nowrap;
 }
 
 .stats-table th {
     background-color: rgba(0, 0, 0, 0.2);
 }
 
+/* Mobile optimizations for tables */
+@media (max-width: 768px) {
+    .stats-table th,
+    .stats-table td {
+        padding: 6px 3px;
+        font-size: 0.9rem;
+    }
+    
+    .stats-table th:first-child,
+    .stats-table td:first-child {
+        position: sticky;
+        left: 0;
+        background-color: var(--secondary);
+        z-index: 1;
+    }
+    
+    .stats-table th:first-child {
+        background-color: rgba(0, 0, 0, 0.2);
+    }
+}
+
 .additional-stats {
     background-color: var(--secondary);
     border-radius: 8px;
     padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .stat-item {
     display: flex;
     justify-content: space-between;
     margin-bottom: 10px;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+@media (max-width: 480px) {
+    .stat-item {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
 }
 
 .stat-label {
@@ -310,15 +527,104 @@ header h1 {
     color: #c0392b;
 }
 
-footer {
-    text-align: center;
-    margin-top: 30px;
-    padding: 20px 0;
-    border-top: 1px solid var(--primary);
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.7);
-}
-
 .hidden {
     display: none;
+}
+
+/* Stream debug UI styles */
+.stream-debug {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    width: 300px;
+    max-height: 200px;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 5px;
+    font-size: 10px;
+    font-family: monospace;
+    z-index: 9999;
+    border-radius: 5px;
+    display: none; /* Hidden by default, shown when debug mode is enabled */
+}
+
+.stream-event {
+    padding: 2px 4px;
+    margin-bottom: 2px;
+    border-left: 3px solid transparent;
+}
+
+.stream-event.created {
+    border-left-color: var(--success);
+}
+
+.stream-event.terminated {
+    border-left-color: var(--error);
+}
+
+.stream-event.reset {
+    border-left-color: #ff00ff;
+    background-color: rgba(255, 0, 0, 0.3);
+}
+
+.debug-toggle {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    z-index: 9999;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 5px 10px;
+    border-radius: 5px;
+    color: white;
+    font-family: monospace;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    transition: background-color 0.2s;
+}
+
+.debug-toggle:hover {
+    background-color: rgba(0, 0, 0, 0.9);
+}
+
+.debug-toggle-container {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    z-index: 9999;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 5px;
+    border-radius: 5px;
+    color: white;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+/* Footer styles */
+footer {
+    text-align: center;
+    margin-top: 20px;
+    padding: 20px 0;
+    border-top: 1px solid var(--primary);
+}
+
+footer p {
+    margin: 5px 0;
+}
+
+footer a {
+    color: white;
+    text-decoration: none;
+    transition: opacity 0.3s;
+}
+
+footer a:hover {
+    opacity: 0.8;
+}
+
+.heart {
+    color: #e74c3c;
+    display: inline-block;
 }
