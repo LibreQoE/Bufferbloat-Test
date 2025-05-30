@@ -357,18 +357,18 @@ async function handlePhaseChange(event) {
             // First add a null point at the end of the Download phase
             addNullDownloadDataPoint(throughputChart, elapsedTime);
             
-            // Start with more conservative parameters for upload warmup
-            // Focus on starting with small chunks of data and gradually ramping up
-            // Use minimal stream count and pending uploads initially
+            // Start with conservative parameters for upload warmup that work for all connection speeds
+            // The parameter discovery will scale up or down as needed
             const warmupParams = {
-                streamCount: 2,           // Start with 2 streams
-                pendingUploads: 2,        // Start with 2 pending uploads
+                streamCount: 2,           // Start with 2 streams (works for all speeds)
+                pendingUploads: 2,        // Start with 2 pending uploads (works for all speeds)
                 uploadDelay: 0,           // No delay between uploads
                 useGradualChunkSizes: true, // Signal to use gradually increasing chunk sizes
-                minDuration: 15000        // Ensure upload warmup runs for at least 15 seconds
+                minDuration: 15000,       // Ensure upload warmup runs for at least 15 seconds
+                chunkSize: 65536          // Start with 64KB chunks (default)
             };
-            console.log(`Using conservative initial upload warmup parameters: ${JSON.stringify(warmupParams)}`);
-            console.log(`Upload warmup will start with small chunks and gradually increase to 64KB`);
+            console.log(`Using conservative initial upload warmup parameters that work for all speeds: ${JSON.stringify(warmupParams)}`);
+            console.log(`Upload warmup will start with small chunks and gradually increase based on connection speed`);
             console.log(`Upload warmup will run for at least 15 seconds to ensure proper parameter discovery`);
             await StreamManager.startUploadSaturation(true, 0, warmupParams);
             

@@ -29,14 +29,14 @@ class SimpleParameterDiscovery {
             this.absoluteLatencyMax = Math.max(150, Math.min(250, baselineLatency * 2.5)); // Higher ceiling between 150-250ms for download
         }
         
-        // Parameter ranges
+        // Parameter ranges - increased for high-capacity connections
         this.minStreamCount = 1;
-        this.maxStreamCount = 8;
+        this.maxStreamCount = type === 'upload' ? 16 : 24; // Higher stream count for gigabit connections
         this.currentStreamCount = 1;
         
         // For upload only
         this.minPendingUploads = 1;
-        this.maxPendingUploads = 8; // Increase max pending uploads for better saturation
+        this.maxPendingUploads = 16; // Significantly increased for gigabit connections
         this.currentPendingUploads = 1;
         
         // State tracking
@@ -131,20 +131,35 @@ class SimpleParameterDiscovery {
                 this.consecutiveHighLatency = (this.consecutiveHighLatency || 0) + 1;
                 console.log(`Consecutive high latency measurements: ${this.consecutiveHighLatency}`);
                 
-                // Only back off if we have 5 consecutive high latency measurements AND exceed absolute max
-                if (this.consecutiveHighLatency >= 5 && exceedsAbsoluteMax) {
-                    console.log(`Multiple consecutive high latency measurements, backing off gently`);
+                // Back off more quickly for very high latency (likely low-capacity connection)
+                if (exceedsAbsoluteMax || (this.consecutiveHighLatency >= 3 && exceedsLatencyThreshold)) {
+                    console.log(`High latency detected (${measurement.latency.toFixed(2)} ms), backing off parameters`);
                     
-                    // Only back off one parameter at a time, not both
-                    // Ensure minimum values of 3 for both parameters
-                    if (this.currentPendingUploads > 3 && Math.random() < 0.5) {
-                        this.currentPendingUploads--;
-                        console.log(`Backing off pending uploads to ${this.currentPendingUploads}`);
-                    } else if (this.currentStreamCount > 3) {
-                        this.currentStreamCount--;
-                        console.log(`Backing off stream count to ${this.currentStreamCount}`);
+                    // For very high latency, back off more aggressively
+                    if (measurement.latency > this.absoluteLatencyMax * 1.5) {
+                        console.log(`Very high latency detected, backing off more aggressively`);
+                        
+                        // Back off both parameters simultaneously for very high latency
+                        if (this.currentPendingUploads > 1) {
+                            this.currentPendingUploads = Math.max(1, Math.floor(this.currentPendingUploads * 0.75));
+                            console.log(`Aggressively backing off pending uploads to ${this.currentPendingUploads}`);
+                        }
+                        
+                        if (this.currentStreamCount > 1) {
+                            this.currentStreamCount = Math.max(1, Math.floor(this.currentStreamCount * 0.75));
+                            console.log(`Aggressively backing off stream count to ${this.currentStreamCount}`);
+                        }
                     } else {
-                        console.log(`Already at minimum parameters, not backing off further`);
+                        // Standard backoff - only one parameter at a time
+                        if (this.currentPendingUploads > 1 && Math.random() < 0.5) {
+                            this.currentPendingUploads--;
+                            console.log(`Backing off pending uploads to ${this.currentPendingUploads}`);
+                        } else if (this.currentStreamCount > 1) {
+                            this.currentStreamCount--;
+                            console.log(`Backing off stream count to ${this.currentStreamCount}`);
+                        } else {
+                            console.log(`Already at minimum parameters, not backing off further`);
+                        }
                     }
                     
                     // Reset counter but not all the way to zero
@@ -164,19 +179,35 @@ class SimpleParameterDiscovery {
                 this.consecutiveHighLatency = (this.consecutiveHighLatency || 0) + 1;
                 console.log(`Consecutive high latency measurements: ${this.consecutiveHighLatency}`);
                 
-                // Only back off if we have 3 consecutive high latency measurements OR exceed absolute max
-                if (this.consecutiveHighLatency >= 3 || exceedsAbsoluteMax) {
-                    console.log(`Multiple consecutive high latency measurements or absolute max exceeded, backing off parameters`);
+                // Back off more quickly for very high latency (likely low-capacity connection)
+                if (exceedsAbsoluteMax || this.consecutiveHighLatency >= 3) {
+                    console.log(`High latency detected (${measurement.latency.toFixed(2)} ms), backing off parameters`);
                     
-                    // Back off one parameter at a time
-                    if (this.currentPendingUploads > 1 && Math.random() < 0.5) {
-                        this.currentPendingUploads--;
-                        console.log(`Backing off pending uploads to ${this.currentPendingUploads}`);
-                    } else if (this.currentStreamCount > 1) {
-                        this.currentStreamCount--;
-                        console.log(`Backing off stream count to ${this.currentStreamCount}`);
+                    // For very high latency, back off more aggressively
+                    if (measurement.latency > this.absoluteLatencyMax * 1.5) {
+                        console.log(`Very high latency detected, backing off more aggressively`);
+                        
+                        // Back off both parameters simultaneously for very high latency
+                        if (this.currentPendingUploads > 1) {
+                            this.currentPendingUploads = Math.max(1, Math.floor(this.currentPendingUploads * 0.75));
+                            console.log(`Aggressively backing off pending uploads to ${this.currentPendingUploads}`);
+                        }
+                        
+                        if (this.currentStreamCount > 1) {
+                            this.currentStreamCount = Math.max(1, Math.floor(this.currentStreamCount * 0.75));
+                            console.log(`Aggressively backing off stream count to ${this.currentStreamCount}`);
+                        }
                     } else {
-                        console.log(`Already at minimum parameters, not backing off further`);
+                        // Standard backoff - only one parameter at a time
+                        if (this.currentPendingUploads > 1 && Math.random() < 0.5) {
+                            this.currentPendingUploads--;
+                            console.log(`Backing off pending uploads to ${this.currentPendingUploads}`);
+                        } else if (this.currentStreamCount > 1) {
+                            this.currentStreamCount--;
+                            console.log(`Backing off stream count to ${this.currentStreamCount}`);
+                        } else {
+                            console.log(`Already at minimum parameters, not backing off further`);
+                        }
                     }
                     
                     // Reset counter but not all the way to zero
@@ -484,9 +515,10 @@ class SimpleParameterDiscovery {
                 paramChanged = true;
             }
             
-            // If we've reached at least 3 streams and 3 pending uploads, consider it good enough
-            if (this.currentStreamCount >= 3 && this.currentPendingUploads >= 3) {
-                console.log(`Reached sufficient parameters for upload: streams=${this.currentStreamCount}, pendingUploads=${this.currentPendingUploads}`);
+            // For high-capacity connections, we need higher parameters to be considered "sufficient"
+            // Only consider it sufficient if we've reached at least 8 streams or 8 pending uploads
+            if (this.currentStreamCount >= 8 || this.currentPendingUploads >= 8) {
+                console.log(`Reached sufficient parameters for upload on high-capacity connection: streams=${this.currentStreamCount}, pendingUploads=${this.currentPendingUploads}`);
                 // Update best parameters if we haven't found better ones yet
                 if (!this.bestThroughput || this.bestThroughput <= 0) {
                     this.stableParameters = {
@@ -561,29 +593,31 @@ class SimpleParameterDiscovery {
     
     /**
      * Finalize the discovery process after all checks
+     * Using end-of-phase parameter selection with look-back approach
      */
     finalizeDiscovery() {
         if (this.isComplete) return;
         
-        // Ensure we have valid parameters to return
-        if ((this.bestThroughput <= 0 || !this.bestLatency) && this.measurements.length > 0) {
-            console.log(`No optimal parameters found yet, selecting best from all measurements`);
-            
+        console.log(`Finalizing discovery with end-of-phase look-back approach`);
+        
+        // Only proceed if we have measurements
+        if (this.measurements.length > 0) {
             // Calculate scores for all measurements
             const latencyWeight = this.type === 'upload' ? 0.3 : 0.5; // More weight on latency for download
             const throughputWeight = 1 - latencyWeight;
             
             // Find the measurement with the best score (balancing throughput and latency)
-            let bestMeasurement = this.measurements[0];
+            let bestMeasurementIndex = 0;
             let bestScore = -Infinity;
+            let scores = [];
             
-            console.log(`FINAL PARAMETER SELECTION - Evaluating ${this.measurements.length} measurements:`);
+            console.log(`END-OF-PHASE PARAMETER SELECTION - Evaluating ${this.measurements.length} measurements:`);
             console.log(`  - Latency weight: ${latencyWeight.toFixed(2)}, Throughput weight: ${throughputWeight.toFixed(2)}`);
             console.log(`  - Latency threshold: ${this.latencyThreshold.toFixed(2)} ms`);
             
-            for (const measurement of this.measurements) {
-                // Consider all measurements for both upload and download
-                // No need to skip measurements from the first 10 seconds
+            // Calculate scores for all measurements
+            for (let i = 0; i < this.measurements.length; i++) {
+                const measurement = this.measurements[i];
                 
                 // Normalize latency (lower is better)
                 const normalizedLatency = Math.max(0, 1 - (measurement.latency / this.latencyThreshold));
@@ -592,64 +626,101 @@ class SimpleParameterDiscovery {
                 const score = (throughputWeight * measurement.throughput) +
                              (latencyWeight * normalizedLatency * measurement.throughput);
                 
-                console.log(`  - Measurement: streams=${measurement.parameters.streamCount}, pending=${measurement.parameters.pendingUploads}`);
+                scores.push({
+                    index: i,
+                    score: score,
+                    measurement: measurement
+                });
+                
+                console.log(`  - Measurement ${i}: streams=${measurement.parameters.streamCount}, pending=${measurement.parameters.pendingUploads}`);
                 console.log(`    - Throughput: ${measurement.throughput.toFixed(2)} Mbps, Latency: ${measurement.latency.toFixed(2)} ms`);
                 console.log(`    - Normalized latency: ${normalizedLatency.toFixed(2)}`);
                 console.log(`    - Score: ${score.toFixed(2)} (throughput component: ${(throughputWeight * measurement.throughput).toFixed(2)}, latency component: ${(latencyWeight * normalizedLatency * measurement.throughput).toFixed(2)})`);
                 
                 if (score > bestScore) {
                     bestScore = score;
-                    bestMeasurement = measurement;
+                    bestMeasurementIndex = i;
                     console.log(`    - NEW BEST SCORE: ${score.toFixed(2)}`);
                 }
             }
             
-            // Update best throughput and parameters
-            this.bestThroughput = bestMeasurement.throughput;
-            this.bestLatency = bestMeasurement.latency;
-            this.stableParameters = {
-                streamCount: bestMeasurement.parameters.streamCount,
-                pendingUploads: bestMeasurement.parameters.pendingUploads,
-                uploadDelay: 0
-            };
+            // Get the best measurement
+            const bestMeasurement = this.measurements[bestMeasurementIndex];
             
-            console.log(`Selected optimal parameters with score ${bestScore.toFixed(2)}: throughput=${this.bestThroughput.toFixed(2)} Mbps, latency=${this.bestLatency.toFixed(2)} ms`);
-            console.log(`Optimal parameters:`, this.stableParameters);
+            // Look back one position to find the causal parameters
+            // (with bounds checking)
+            let causalMeasurementIndex = bestMeasurementIndex - 1;
+            let causalMeasurement;
             
-            // Mark this measurement as optimal in the parameter history
-            const matchingHistoryEntry = this.parameterHistory.find(entry =>
-                entry.parameters.streamCount === bestMeasurement.parameters.streamCount &&
-                entry.parameters.pendingUploads === bestMeasurement.parameters.pendingUploads
+            if (causalMeasurementIndex >= 0) {
+                causalMeasurement = this.measurements[causalMeasurementIndex];
+                console.log(`LOOK-BACK: Using parameters from measurement ${causalMeasurementIndex} that likely caused optimal outcome in measurement ${bestMeasurementIndex}`);
+                console.log(`  - Causal parameters: streams=${causalMeasurement.parameters.streamCount}, pending=${causalMeasurement.parameters.pendingUploads}`);
+                console.log(`  - Resulted in: throughput=${bestMeasurement.throughput.toFixed(2)} Mbps, latency=${bestMeasurement.latency.toFixed(2)} ms`);
+                
+                // Use the causal parameters
+                this.stableParameters = {
+                    streamCount: causalMeasurement.parameters.streamCount,
+                    pendingUploads: causalMeasurement.parameters.pendingUploads,
+                    uploadDelay: 0
+                };
+                
+                // Store the best outcome for reference
+                this.bestThroughput = bestMeasurement.throughput;
+                this.bestLatency = bestMeasurement.latency;
+            } else {
+                // If best measurement is the first one, use its parameters
+                console.log(`Best measurement is the first one, using its parameters directly`);
+                this.stableParameters = {
+                    streamCount: bestMeasurement.parameters.streamCount,
+                    pendingUploads: bestMeasurement.parameters.pendingUploads,
+                    uploadDelay: 0
+                };
+                
+                this.bestThroughput = bestMeasurement.throughput;
+                this.bestLatency = bestMeasurement.latency;
+            }
+            
+            console.log(`Selected parameters: streams=${this.stableParameters.streamCount}, pending=${this.stableParameters.pendingUploads}`);
+            console.log(`Best outcome: throughput=${this.bestThroughput.toFixed(2)} Mbps, latency=${this.bestLatency.toFixed(2)} ms`);
+            
+            // Update parameter history visualization
+            // Mark both the optimal outcome and the causal parameters
+            this.parameterHistory.forEach(entry => {
+                entry.isOptimal = false;
+                entry.causedOptimal = false;
+            });
+            
+            // Find and mark the entry with the best outcome
+            const bestOutcomeEntry = this.parameterHistory.find(entry =>
+                Math.abs(entry.throughput - bestMeasurement.throughput) < 0.1 &&
+                Math.abs(entry.latency - bestMeasurement.latency) < 1
             );
             
-            if (matchingHistoryEntry) {
-                // Clear any previous optimal flags
-                this.parameterHistory.forEach(entry => entry.isOptimal = false);
-                // Mark this entry as optimal
-                matchingHistoryEntry.isOptimal = true;
-                console.log(`Marked parameter set as optimal in history: streams=${matchingHistoryEntry.parameters.streamCount}, pendingUploads=${matchingHistoryEntry.parameters.pendingUploads}`);
-            } else {
-                // If we can't find a matching entry, find the closest one
-                if (this.parameterHistory.length > 0) {
-                    let closestEntry = this.parameterHistory[0];
-                    let closestDistance = Number.MAX_VALUE;
-                    
-                    for (const entry of this.parameterHistory) {
-                        const streamDiff = Math.abs(entry.parameters.streamCount - bestMeasurement.parameters.streamCount);
-                        const pendingDiff = Math.abs(entry.parameters.pendingUploads - bestMeasurement.parameters.pendingUploads);
-                        const distance = streamDiff + pendingDiff;
-                        
-                        if (distance < closestDistance) {
-                            closestDistance = distance;
-                            closestEntry = entry;
-                        }
-                    }
-                    
-                    this.parameterHistory.forEach(entry => entry.isOptimal = false);
-                    closestEntry.isOptimal = true;
-                    console.log(`Marked closest parameter set as optimal in history: streams=${closestEntry.parameters.streamCount}, pendingUploads=${closestEntry.parameters.pendingUploads}`);
+            if (bestOutcomeEntry) {
+                bestOutcomeEntry.isOptimal = true;
+                console.log(`Marked entry with best outcome in history: throughput=${bestOutcomeEntry.throughput.toFixed(2)}, latency=${bestOutcomeEntry.latency.toFixed(2)}`);
+            }
+            
+            // Find and mark the entry with the causal parameters
+            if (causalMeasurement) {
+                const causalEntry = this.parameterHistory.find(entry =>
+                    entry.parameters.streamCount === causalMeasurement.parameters.streamCount &&
+                    entry.parameters.pendingUploads === causalMeasurement.parameters.pendingUploads
+                );
+                
+                if (causalEntry) {
+                    causalEntry.causedOptimal = true;
+                    console.log(`Marked causal parameter set in history: streams=${causalEntry.parameters.streamCount}, pendingUploads=${causalEntry.parameters.pendingUploads}`);
                 }
             }
+        } else {
+            console.log(`No measurements available, using default parameters`);
+            this.stableParameters = {
+                streamCount: this.type === 'upload' ? 2 : 3,
+                pendingUploads: this.type === 'upload' ? 2 : 1,
+                uploadDelay: 0
+            };
         }
         
         // Ensure we have at least the minimum parameters
@@ -661,11 +732,12 @@ class SimpleParameterDiscovery {
             console.log(`Using minimum parameters:`, this.stableParameters);
         }
         
-        // For upload, ensure we have at least 3 streams and 3 pending uploads
+        // For upload, ensure we have reasonable minimum values but don't force high values
+        // This allows the parameter discovery to find appropriate values for all connection speeds
         if (this.type === 'upload') {
-            this.stableParameters.streamCount = Math.max(3, this.stableParameters.streamCount);
-            this.stableParameters.pendingUploads = Math.max(3, this.stableParameters.pendingUploads);
-            console.log(`Ensuring minimum upload parameters: streams=${this.stableParameters.streamCount}, pendingUploads=${this.stableParameters.pendingUploads}`);
+            this.stableParameters.streamCount = Math.max(1, this.stableParameters.streamCount);
+            this.stableParameters.pendingUploads = Math.max(1, this.stableParameters.pendingUploads);
+            console.log(`Ensuring reasonable upload parameters: streams=${this.stableParameters.streamCount}, pendingUploads=${this.stableParameters.pendingUploads}`);
         }
         
         // Ensure we have an optimal parameter set marked in the history
@@ -708,13 +780,13 @@ class SimpleParameterDiscovery {
         
         // Ensure we have valid parameters to return
         if (!this.stableParameters || !this.stableParameters.streamCount || !this.stableParameters.pendingUploads) {
-            console.log(`WARNING: Invalid stable parameters detected, using fallback values`);
+            console.log(`WARNING: Invalid stable parameters detected, using reasonable fallback values`);
             this.stableParameters = {
                 streamCount: this.type === 'upload' ? 2 : 3,
                 pendingUploads: this.type === 'upload' ? 2 : 1,
                 uploadDelay: 0
             };
-            console.log(`Using fallback parameters: ${JSON.stringify(this.stableParameters)}`);
+            console.log(`Using reasonable fallback parameters that work for all speeds: ${JSON.stringify(this.stableParameters)}`);
         }
         
         // Resolve the promise with the optimal parameters
@@ -879,13 +951,13 @@ export function initDiscovery(type, baselineLatency) {
     // Start discovery process with error handling
     return discovery.start().catch(error => {
         console.error(`Parameter discovery for ${type} failed:`, error);
-        // Return default parameters in case of failure
+        // Return reasonable default parameters that work for all connection speeds
         const defaultParams = {
             streamCount: type === 'upload' ? 2 : 3,
             pendingUploads: type === 'upload' ? 2 : 1,
             uploadDelay: 0
         };
-        console.log(`Returning default parameters due to discovery failure: ${JSON.stringify(defaultParams)}`);
+        console.log(`Returning reasonable default parameters due to discovery failure: ${JSON.stringify(defaultParams)}`);
         return defaultParams;
     });
 }

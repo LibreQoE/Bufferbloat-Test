@@ -3,6 +3,9 @@
  * Handles the creation, tracking, and termination of network streams
  */
 
+// Global variable to track the final chunk size from the discovery phase
+let finalUploadDiscoveryChunkSize = 64 * 1024; // Default to 64KB if discovery phase is skipped
+
 class StreamManager {
     // Stream registry
     static streams = {
@@ -307,6 +310,12 @@ class StreamManager {
             // Log bytes sent update
             console.log(`Stream ${stream.id} bytes sent updated: ${previousBytesSent} -> ${stream.bytesSent} (+${chunkSize})`);
             
+            // If this is a discovery phase, track the chunk size for use in full test phases
+            if (stream.options.isDiscovery) {
+                finalUploadDiscoveryChunkSize = chunkSize;
+                console.log(`Updated final discovery chunk size to ${Math.round(finalUploadDiscoveryChunkSize/1024)}KB`);
+            }
+            
             // Remove the chunk from the queue
             stream.dataChunks.shift();
             
@@ -502,15 +511,15 @@ class StreamManager {
      * @param {number} count - Number of chunks to add
      */
     static addMoreUploadChunks(stream, count = 10) {
-        const maxChunkSize = 65536; // 64KB max for crypto.getRandomValues
+        const maxCryptoChunkSize = 65536; // 64KB max for crypto.getRandomValues
         
         // For discovery phase, use gradually increasing chunk sizes
         // For full test, use the maximum size
         if (stream.options.isDiscovery) {
             // Calculate appropriate chunk sizes based on how many chunks we've already sent
             // This helps continue the gradual ramp-up even when adding more chunks
-            const initialChunkSize = 4 * 1024; // 4KB initial size
-            const maxTargetChunkSize = 64 * 1024; // Max 64KB (crypto library limit)
+            const initialChunkSize = 4 * 1024; // 4KB initial size (works for all speeds)
+            const maxTargetChunkSize = 128 * 1024; // 128KB max (reasonable for most connections)
             
             // Estimate how many chunks we've already processed based on bytes sent
             const bytesPerChunk = (initialChunkSize + maxTargetChunkSize) / 2; // Rough average
@@ -538,13 +547,13 @@ class StreamManager {
                 const chunk = new Uint8Array(targetChunkSize);
                 
                 // Fill with random data in smaller segments if needed
-                if (targetChunkSize <= maxChunkSize) {
+                if (targetChunkSize <= maxCryptoChunkSize) {
                     // Can fill in one go
                     crypto.getRandomValues(chunk);
                 } else {
                     // Need to fill in segments
-                    for (let offset = 0; offset < targetChunkSize; offset += maxChunkSize) {
-                        const length = Math.min(maxChunkSize, targetChunkSize - offset);
+                    for (let offset = 0; offset < targetChunkSize; offset += maxCryptoChunkSize) {
+                        const length = Math.min(maxCryptoChunkSize, targetChunkSize - offset);
                         const tempChunk = new Uint8Array(length);
                         crypto.getRandomValues(tempChunk);
                         chunk.set(tempChunk, offset);
@@ -554,20 +563,23 @@ class StreamManager {
                 stream.dataChunks.push(chunk);
             }
         } else {
-            // For full test, use fixed maximum size
-            const targetChunkSize = 64 * 1024; // 64KB for full test
+            // For full test, use the final chunk size from the discovery phase
+            // This ensures a smooth transition between phases and prevents network congestion
+            const targetChunkSize = finalUploadDiscoveryChunkSize;
+            
+            console.log(`Adding more chunks using final discovery chunk size: ${Math.round(targetChunkSize/1024)}KB`);
             
             for (let i = 0; i < count; i++) {
                 const chunk = new Uint8Array(targetChunkSize);
                 
                 // Fill with random data in smaller segments if needed
-                if (targetChunkSize <= maxChunkSize) {
+                if (targetChunkSize <= maxCryptoChunkSize) {
                     // Can fill in one go
                     crypto.getRandomValues(chunk);
                 } else {
                     // Need to fill in segments
-                    for (let offset = 0; offset < targetChunkSize; offset += maxChunkSize) {
-                        const length = Math.min(maxChunkSize, targetChunkSize - offset);
+                    for (let offset = 0; offset < targetChunkSize; offset += maxCryptoChunkSize) {
+                        const length = Math.min(maxCryptoChunkSize, targetChunkSize - offset);
                         const tempChunk = new Uint8Array(length);
                         crypto.getRandomValues(tempChunk);
                         chunk.set(tempChunk, offset);
@@ -638,7 +650,7 @@ class StreamManager {
                 // This ensures phase 3 (Download) and phase 6 (Bidirectional) behave consistently
                 addDelay: params.addDelay || false,
                 chunkDelay: params.chunkDelay || 10,
-                chunkSize: 128 * 1024, // Use larger chunks to move more data
+                chunkSize: 128 * 1024, // Use moderate chunk size (128KB) that works for most connections
                 isDiscovery: isDiscovery, // Pass the phase information
                 // Preserve the isDownloadPhase flag exactly as it was in the original parameters
                 // This is critical for consistent behavior between phases
@@ -676,6 +688,11 @@ class StreamManager {
         let streamCount, pendingUploads, uploadDelay, minDuration;
         
         if (isDiscovery) {
+            // Reset the final chunk size at the beginning of the discovery phase
+            // This ensures each test run starts fresh
+            finalUploadDiscoveryChunkSize = 64 * 1024; // Reset to default
+            console.log(`Reset final discovery chunk size to ${Math.round(finalUploadDiscoveryChunkSize/1024)}KB for new discovery phase`);
+            
             streamCount = params.streamCount || 1;
             pendingUploads = params.pendingUploads || 1;
             uploadDelay = params.uploadDelay || 0; // Changed from 50 to 0 for better saturation
@@ -718,7 +735,7 @@ class StreamManager {
         if (dataChunks.length === 0) {
             // Create chunks with random data
             // crypto.getRandomValues can only handle up to 65536 bytes at once
-            const maxChunkSize = 65536; // 64KB max for crypto.getRandomValues
+            const maxCryptoChunkSize = 65536; // 64KB max for crypto.getRandomValues
             const chunksPerStream = isDiscovery ? 50 : 20; // More chunks for discovery to allow for gradual size increase and continuous upload
             
             // For discovery phase, start with smaller chunks and gradually increase size
@@ -726,10 +743,11 @@ class StreamManager {
             let initialChunkSize, maxTargetChunkSize;
             
             if (isDiscovery) {
-                // Start with small chunks (4KB) for discovery and gradually increase
+                // Start with very small chunks (4KB) for discovery and gradually increase
+                // This works well for all connection speeds
                 initialChunkSize = 4 * 1024; // 4KB initial size
-                maxTargetChunkSize = 64 * 1024; // Max 64KB (crypto library limit)
-                console.log(`Starting upload discovery with small chunks (${initialChunkSize/1024}KB) ramping up to ${maxTargetChunkSize/1024}KB`);
+                maxTargetChunkSize = 128 * 1024; // 128KB max (reasonable for most connections)
+                console.log(`Starting upload discovery with small chunks (${initialChunkSize/1024}KB) ramping up to ${maxTargetChunkSize/1024}KB based on connection speed`);
                 
                 // Create chunks with gradually increasing sizes
                 for (let i = 0; i < chunksPerStream; i++) {
@@ -743,37 +761,35 @@ class StreamManager {
                     
                     const chunk = new Uint8Array(targetChunkSize);
                     
-                    // Fill with random data in smaller segments if needed
-                    if (targetChunkSize <= maxChunkSize) {
-                        // Can fill in one go
-                        crypto.getRandomValues(chunk);
-                    } else {
-                        // Need to fill in segments
-                        for (let offset = 0; offset < targetChunkSize; offset += maxChunkSize) {
-                            const length = Math.min(maxChunkSize, targetChunkSize - offset);
-                            const tempChunk = new Uint8Array(length);
-                            crypto.getRandomValues(tempChunk);
-                            chunk.set(tempChunk, offset);
-                        }
+                    // Fill with random data in smaller segments
+                    // Always fill in segments since we're using larger chunks
+                    for (let offset = 0; offset < targetChunkSize; offset += maxCryptoChunkSize) {
+                        const length = Math.min(maxCryptoChunkSize, targetChunkSize - offset);
+                        const tempChunk = new Uint8Array(length);
+                        crypto.getRandomValues(tempChunk);
+                        chunk.set(tempChunk, offset);
                     }
                     
                     dataChunks.push(chunk);
                 }
             } else {
-                // For full test, use fixed maximum size
-                const targetChunkSize = 64 * 1024; // 64KB for full test
+                // For full test, use the final chunk size from the discovery phase
+                // This ensures a smooth transition between phases and prevents network congestion
+                const targetChunkSize = finalUploadDiscoveryChunkSize;
+                
+                console.log(`Using final discovery chunk size for full test: ${Math.round(targetChunkSize/1024)}KB`);
                 
                 for (let i = 0; i < chunksPerStream; i++) {
                     const chunk = new Uint8Array(targetChunkSize);
                     
                     // Fill with random data in smaller segments if needed
-                    if (targetChunkSize <= maxChunkSize) {
+                    if (targetChunkSize <= maxCryptoChunkSize) {
                         // Can fill in one go
                         crypto.getRandomValues(chunk);
                     } else {
                         // Need to fill in segments
-                        for (let offset = 0; offset < targetChunkSize; offset += maxChunkSize) {
-                            const length = Math.min(maxChunkSize, targetChunkSize - offset);
+                        for (let offset = 0; offset < targetChunkSize; offset += maxCryptoChunkSize) {
+                            const length = Math.min(maxCryptoChunkSize, targetChunkSize - offset);
                             const tempChunk = new Uint8Array(length);
                             crypto.getRandomValues(tempChunk);
                             chunk.set(tempChunk, offset);

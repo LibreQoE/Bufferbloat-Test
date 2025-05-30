@@ -1,14 +1,18 @@
 /**
  * Parameter Visualization Module
- * Visualizes parameter testing during warmup phases
+ * Visualizes parameter testing during warmup phases using Chart.js
  */
+
+// Chart instances
+let downloadChart = null;
+let uploadChart = null;
 
 /**
  * Create parameter visualization container
  * @returns {HTMLElement} The visualization container
  */
 function createVisualizationContainer() {
-    // Create main container with a table-like structure
+    // Create main container
     const container = document.createElement('div');
     container.id = 'parameterVisualization';
     container.className = 'parameter-visualization';
@@ -46,10 +50,12 @@ function createVisualizationContainer() {
     downloadHeader.innerHTML = '<h3>Download Parameter Testing</h3>';
     downloadSection.appendChild(downloadHeader);
     
-    // Create download visualization area
-    const downloadVizArea = document.createElement('div');
-    downloadVizArea.className = 'param-viz-area';
-    downloadSection.appendChild(downloadVizArea);
+    // Create download chart canvas
+    const downloadCanvas = document.createElement('canvas');
+    downloadCanvas.id = 'downloadParameterChart';
+    downloadCanvas.style.width = '100%';
+    downloadCanvas.style.height = '200px';
+    downloadSection.appendChild(downloadCanvas);
     
     // Create upload cell (right)
     const uploadCell = document.createElement('td');
@@ -70,28 +76,12 @@ function createVisualizationContainer() {
     uploadHeader.innerHTML = '<h3>Upload Parameter Testing</h3>';
     uploadSection.appendChild(uploadHeader);
     
-    // Create upload visualization area
-    const uploadVizArea = document.createElement('div');
-    uploadVizArea.className = 'param-viz-area';
-    uploadSection.appendChild(uploadVizArea);
-    
-    // Create shared legend in a new row
-    const legendRow = document.createElement('tr');
-    table.appendChild(legendRow);
-    
-    const legendCell = document.createElement('td');
-    legendCell.colSpan = 2;
-    legendCell.style.textAlign = 'center';
-    legendRow.appendChild(legendCell);
-    
-    const legend = document.createElement('div');
-    legend.className = 'param-viz-legend';
-    legend.innerHTML = `
-        <div class="legend-item"><span class="legend-color" style="background-color: var(--primary);"></span> Throughput</div>
-        <div class="legend-item"><span class="legend-color" style="background-color: var(--error);"></span> Latency</div>
-        <div class="legend-item"><span class="legend-marker optimal"></span> Optimal Parameters</div>
-    `;
-    legendCell.appendChild(legend);
+    // Create upload chart canvas
+    const uploadCanvas = document.createElement('canvas');
+    uploadCanvas.id = 'uploadParameterChart';
+    uploadCanvas.style.width = '100%';
+    uploadCanvas.style.height = '200px';
+    uploadSection.appendChild(uploadCanvas);
     
     return container;
 }
@@ -123,6 +113,316 @@ export function initParameterVisualization() {
     
     // Add CSS styles
     addVisualizationStyles();
+    
+    // Initialize charts
+    initializeCharts();
+}
+
+/**
+ * Initialize Chart.js charts for parameter visualization
+ */
+function initializeCharts() {
+    // Initialize download parameter chart
+    const downloadCtx = document.getElementById('downloadParameterChart');
+    if (downloadCtx) {
+        downloadChart = new Chart(downloadCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Throughput (Mbps)',
+                        data: [],
+                        backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Latency (ms)',
+                        data: [],
+                        backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            color: 'white',
+                            usePointStyle: true,
+                            generateLabels: function(chart) {
+                                const defaultLabels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                                
+                                // Add custom legend items for optimal and causal
+                                defaultLabels.push({
+                                    text: 'Optimal Outcome',
+                                    fillStyle: 'rgba(0, 200, 83, 0.9)',
+                                    strokeStyle: 'rgba(255, 255, 255, 1)',
+                                    lineWidth: 3,
+                                    hidden: false,
+                                    index: defaultLabels.length,
+                                    fontColor: chart.options.plugins.legend.labels.color
+                                });
+                                
+                                defaultLabels.push({
+                                    text: 'Causal Parameters',
+                                    fillStyle: 'rgba(33, 150, 243, 0.9)',
+                                    strokeStyle: 'rgba(255, 215, 0, 1)',
+                                    lineWidth: 3,
+                                    hidden: false,
+                                    index: defaultLabels.length + 1,
+                                    fontColor: chart.options.plugins.legend.labels.color
+                                });
+                                
+                                return defaultLabels;
+                            }
+                        },
+                        onClick: function(e, legendItem, legend) {
+                            // Only handle clicks on the default legend items
+                            if (legendItem.index < 2) {
+                                // Call the default handler for throughput and latency
+                                Chart.defaults.plugins.legend.onClick(e, legendItem, legend);
+                            }
+                            // Ignore clicks on our custom legend items
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                const index = tooltipItems[0].dataIndex;
+                                const streams = downloadChart.data.labels[index].split('/')[0];
+                                const pending = downloadChart.data.labels[index].split('/')[1];
+                                return `Streams: ${streams}, Pending: ${pending}`;
+                            },
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += context.parsed.y.toFixed(2);
+                                }
+                                return label;
+                            },
+                            afterLabel: function(context) {
+                                if (context.datasetIndex !== 0) return ''; // Only show for throughput bars
+                                
+                                const index = context.dataIndex;
+                                const borderColor = context.dataset.borderColor[index];
+                                
+                                if (borderColor === 'rgba(255, 255, 255, 1)') {
+                                    return '✓ OPTIMAL OUTCOME';
+                                } else if (borderColor === 'rgba(255, 215, 0, 1)') {
+                                    return '⚙️ CAUSAL PARAMETERS';
+                                } else {
+                                    return '';
+                                }
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: 'white'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    },
+                    y: {
+                        type: 'linear',
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Throughput (Mbps)',
+                            color: 'white'
+                        },
+                        ticks: {
+                            color: 'white'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Latency (ms)',
+                            color: 'white'
+                        },
+                        ticks: {
+                            color: 'white'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Initialize upload parameter chart
+    const uploadCtx = document.getElementById('uploadParameterChart');
+    if (uploadCtx) {
+        uploadChart = new Chart(uploadCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Throughput (Mbps)',
+                        data: [],
+                        backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Latency (ms)',
+                        data: [],
+                        backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            color: 'white',
+                            usePointStyle: true,
+                            generateLabels: function(chart) {
+                                const defaultLabels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                                
+                                // Add custom legend items for optimal and causal
+                                defaultLabels.push({
+                                    text: 'Optimal Outcome',
+                                    fillStyle: 'rgba(0, 200, 83, 0.9)',
+                                    strokeStyle: 'rgba(255, 255, 255, 1)',
+                                    lineWidth: 3,
+                                    hidden: false,
+                                    index: defaultLabels.length,
+                                    fontColor: chart.options.plugins.legend.labels.color
+                                });
+                                
+                                defaultLabels.push({
+                                    text: 'Causal Parameters',
+                                    fillStyle: 'rgba(33, 150, 243, 0.9)',
+                                    strokeStyle: 'rgba(255, 215, 0, 1)',
+                                    lineWidth: 3,
+                                    hidden: false,
+                                    index: defaultLabels.length + 1,
+                                    fontColor: chart.options.plugins.legend.labels.color
+                                });
+                                
+                                return defaultLabels;
+                            }
+                        },
+                        onClick: function(e, legendItem, legend) {
+                            // Only handle clicks on the default legend items
+                            if (legendItem.index < 2) {
+                                // Call the default handler for throughput and latency
+                                Chart.defaults.plugins.legend.onClick(e, legendItem, legend);
+                            }
+                            // Ignore clicks on our custom legend items
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                const index = tooltipItems[0].dataIndex;
+                                const streams = uploadChart.data.labels[index].split('/')[0];
+                                const pending = uploadChart.data.labels[index].split('/')[1];
+                                return `Streams: ${streams}, Pending: ${pending}`;
+                            },
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += context.parsed.y.toFixed(2);
+                                }
+                                return label;
+                            },
+                            afterLabel: function(context) {
+                                if (context.datasetIndex !== 0) return ''; // Only show for throughput bars
+                                
+                                const index = context.dataIndex;
+                                const borderColor = context.dataset.borderColor[index];
+                                
+                                if (borderColor === 'rgba(255, 255, 255, 1)') {
+                                    return '✓ OPTIMAL OUTCOME';
+                                } else if (borderColor === 'rgba(255, 215, 0, 1)') {
+                                    return '⚙️ CAUSAL PARAMETERS';
+                                } else {
+                                    return '';
+                                }
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: 'white'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    },
+                    y: {
+                        type: 'linear',
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Throughput (Mbps)',
+                            color: 'white'
+                        },
+                        ticks: {
+                            color: 'white'
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Latency (ms)',
+                            color: 'white'
+                        },
+                        ticks: {
+                            color: 'white'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    }
+                }
+            }
+        });
+    }
 }
 
 /**
@@ -147,14 +447,8 @@ function addVisualizationStyles() {
             background-color: var(--secondary);
             border-radius: 8px;
             padding: 15px;
-            opacity: 1;
-            height: 200px;
+            height: 250px;
             overflow: hidden;
-        }
-        
-        /* Instead of hiding, we'll just dim the section when not active */
-        .param-viz-section.hidden {
-            opacity: 0.7;
         }
         
         .param-viz-header {
@@ -170,76 +464,6 @@ function addVisualizationStyles() {
             color: #6b9bd1; /* Blue color matching the mockup */
             font-weight: normal;
         }
-        
-        .param-viz-area {
-            height: 120px;
-            position: relative;
-            background-color: rgba(0, 0, 0, 0.2); /* Darker background matching mockup */
-            border-radius: 4px;
-            overflow: hidden;
-            margin-bottom: 10px;
-        }
-        
-        .param-test {
-            position: absolute;
-            bottom: 0;
-            width: 20px;
-            background-color: var(--primary);
-            border-radius: 2px 2px 0 0;
-            transition: height 0.3s ease;
-        }
-        
-        .param-test.optimal {
-            border: 2px solid white;
-            box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
-        }
-        
-        .param-test-latency {
-            position: absolute;
-            width: 20px;
-            height: 3px;
-            background-color: var(--error);
-        }
-        
-        .param-test-label {
-            position: absolute;
-            bottom: -20px;
-            font-size: 10px;
-            text-align: center;
-            width: 20px;
-            color: rgba(255, 255, 255, 0.7);
-        }
-        
-        .param-viz-legend {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin-top: 5px;
-            font-size: 14px;
-            padding: 5px 0;
-        }
-        
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .legend-color {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 2px;
-        }
-        
-        .legend-marker.optimal {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border: 2px solid white;
-            box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
-            border-radius: 2px;
-        }
     `;
     document.head.appendChild(styleEl);
 }
@@ -253,130 +477,109 @@ export function updateParameterVisualization(parameterHistory, type) {
     const container = document.getElementById('parameterVisualization');
     if (!container) return;
     
-    // Get the appropriate section based on type
-    const sectionId = type === 'download' ? 'downloadParameterViz' : 'uploadParameterViz';
-    const section = document.getElementById(sectionId);
-    if (!section) return;
-    
     // Log parameter history for debugging
     console.log(`PARAMETER VISUALIZATION - ${type.toUpperCase()} - ${parameterHistory.length} entries:`);
     
-    // Find the optimal parameters
+    // Find the optimal outcome and causal parameters
     const optimalEntry = parameterHistory.find(entry => entry.isOptimal);
+    const causalEntry = parameterHistory.find(entry => entry.causedOptimal);
+    
     if (optimalEntry) {
-        console.log(`  - OPTIMAL PARAMETERS: streams=${optimalEntry.parameters.streamCount}, pending=${optimalEntry.parameters.pendingUploads}`);
+        console.log(`  - OPTIMAL OUTCOME: streams=${optimalEntry.parameters.streamCount}, pending=${optimalEntry.parameters.pendingUploads}`);
         console.log(`    - Throughput: ${optimalEntry.throughput.toFixed(2)} Mbps, Latency: ${optimalEntry.latency.toFixed(2)} ms`);
     } else {
-        console.log(`  - No optimal parameters marked yet`);
+        console.log(`  - No optimal outcome marked yet`);
+    }
+    
+    if (causalEntry) {
+        console.log(`  - CAUSAL PARAMETERS: streams=${causalEntry.parameters.streamCount}, pending=${causalEntry.parameters.pendingUploads}`);
+        console.log(`    - Throughput: ${causalEntry.throughput.toFixed(2)} Mbps, Latency: ${causalEntry.latency.toFixed(2)} ms`);
     }
     
     // Log all entries
     parameterHistory.forEach((entry, index) => {
         console.log(`  - Entry ${index+1}: streams=${entry.parameters.streamCount}, pending=${entry.parameters.pendingUploads}`);
         console.log(`    - Throughput: ${entry.throughput.toFixed(2)} Mbps, Latency: ${entry.latency.toFixed(2)} ms`);
-        console.log(`    - Is optimal: ${entry.isOptimal ? 'YES' : 'no'}`);
+        console.log(`    - Is optimal outcome: ${entry.isOptimal ? 'YES' : 'no'}`);
+        console.log(`    - Caused optimal outcome: ${entry.causedOptimal ? 'YES' : 'no'}`);
     });
     
-    // Ensure section is visible (not dimmed)
-    section.classList.remove('hidden');
+    // Get the appropriate chart based on type
+    const chart = type === 'download' ? downloadChart : uploadChart;
+    if (!chart) return;
     
-    // Make sure both sections are always visible
-    const downloadSection = document.getElementById('downloadParameterViz');
-    const uploadSection = document.getElementById('uploadParameterViz');
+    // IMPORTANT: Only update the chart for the specified type
+    // This prevents the Upload test from clearing the Download chart
     
-    if (downloadSection) downloadSection.style.display = 'block';
-    if (uploadSection) uploadSection.style.display = 'block';
+    // Clear existing data for THIS CHART ONLY
+    chart.data.labels = [];
+    chart.data.datasets[0].data = []; // Throughput
+    chart.data.datasets[1].data = []; // Latency
     
-    // Get visualization area for the specific type only
-    const vizArea = section.querySelector('.param-viz-area');
-    if (!vizArea) return;
-    
-    // Clear only this specific visualization area
-    vizArea.innerHTML = '';
-    
-    // If no data, show message
+    // If no data, show empty chart
     if (!parameterHistory || parameterHistory.length === 0) {
-        const message = document.createElement('div');
-        message.className = 'param-viz-message';
-        message.textContent = 'Testing parameters...';
-        message.style.textAlign = 'center';
-        message.style.padding = '50px 0';
-        message.style.color = 'rgba(255, 255, 255, 0.7)';
-        vizArea.appendChild(message);
+        chart.update();
         return;
     }
     
-    // Find max throughput and latency for scaling
-    let maxThroughput = 0;
-    let maxLatency = 0;
-    parameterHistory.forEach(entry => {
-        maxThroughput = Math.max(maxThroughput, entry.throughput);
-        maxLatency = Math.max(maxLatency, entry.latency);
+    // Prepare data for Chart.js
+    const labels = [];
+    const throughputData = [];
+    const latencyData = [];
+    const backgroundColors = [];
+    const borderColors = [];
+    
+    // Process each parameter entry
+    parameterHistory.forEach((entry) => {
+        // Create label from stream count and pending uploads
+        labels.push(`${entry.parameters.streamCount}/${entry.parameters.pendingUploads}`);
+        
+        // Add throughput and latency data
+        throughputData.push(entry.throughput);
+        latencyData.push(entry.latency);
+        
+        // Set colors based on entry type
+        if (entry.isOptimal) {
+            // Highlight optimal outcome with bright green and white border
+            backgroundColors.push('rgba(0, 200, 83, 0.9)');
+            borderColors.push('rgba(255, 255, 255, 1)');
+        } else if (entry.causedOptimal) {
+            // Highlight causal parameters with bright blue and gold border
+            backgroundColors.push('rgba(33, 150, 243, 0.9)');
+            borderColors.push('rgba(255, 215, 0, 1)');
+        } else {
+            // Regular entries
+            backgroundColors.push('rgba(75, 192, 192, 0.7)');
+            borderColors.push('rgba(75, 192, 192, 1)');
+        }
     });
     
-    // Add 20% headroom
-    maxThroughput *= 1.2;
-    maxLatency *= 1.2;
+    // Update chart data
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = throughputData;
+    chart.data.datasets[1].data = latencyData;
     
-    // Calculate width based on number of entries
-    const barWidth = Math.min(20, vizArea.clientWidth / parameterHistory.length);
+    // Update background colors for throughput bars
+    chart.data.datasets[0].backgroundColor = backgroundColors;
+    chart.data.datasets[0].borderColor = borderColors;
     
-    // Create bars for each parameter test
-    parameterHistory.forEach((entry, index) => {
-        // Create container for this test
-        const testContainer = document.createElement('div');
-        testContainer.className = 'param-test-container';
-        testContainer.style.position = 'absolute';
-        testContainer.style.bottom = '0';
-        testContainer.style.left = `${index * barWidth}px`;
-        testContainer.style.width = `${barWidth}px`;
-        testContainer.style.height = '100%';
-        
-        // Create throughput bar
-        const throughputBar = document.createElement('div');
-        throughputBar.className = `param-test ${entry.isOptimal ? 'optimal' : ''}`;
-        throughputBar.style.left = `${(barWidth - 10) / 2}px`; // Center in container
-        throughputBar.style.height = `${(entry.throughput / maxThroughput) * 100}%`;
-        
-        // Create latency marker
-        const latencyMarker = document.createElement('div');
-        latencyMarker.className = 'param-test-latency';
-        latencyMarker.style.left = `${(barWidth - 10) / 2}px`; // Center in container
-        latencyMarker.style.bottom = `${(entry.latency / maxLatency) * 100}%`;
-        
-        // Create label
-        const label = document.createElement('div');
-        label.className = 'param-test-label';
-        label.textContent = `${entry.parameters.streamCount}/${entry.parameters.pendingUploads}`;
-        label.style.left = `${(barWidth - 20) / 2}px`; // Center in container
-        
-        // Add tooltip with details
-        testContainer.title = `Streams: ${entry.parameters.streamCount}
-Pending: ${entry.parameters.pendingUploads}
-Throughput: ${entry.throughput.toFixed(2)} Mbps
-Latency: ${entry.latency.toFixed(2)} ms
-${entry.isOptimal ? '✓ OPTIMAL' : ''}`;
-        
-        // Add elements to container
-        testContainer.appendChild(throughputBar);
-        testContainer.appendChild(latencyMarker);
-        testContainer.appendChild(label);
-        vizArea.appendChild(testContainer);
-    });
+    // Add border width for special entries
+    chart.data.datasets[0].borderWidth = borderColors.map(color =>
+        color === 'rgba(255, 255, 255, 1)' || color === 'rgba(255, 215, 0, 1)' ? 3 : 1
+    );
+    
+    // Update the chart
+    chart.update();
 }
 
 /**
- * Dim parameter visualization (not completely hide)
- * @param {string} type - The type of test ('download' or 'upload'), or null to dim both
+ * No-op function that maintains API compatibility
+ * We no longer hide parameter visualizations - they stay visible throughout the test
+ * @param {string} type - The type of test ('download' or 'upload'), or null for both
  */
 export function hideParameterVisualization(type = null) {
-    // This function is now a no-op - we keep all visualizations visible at all times
-    // and never clear their contents
-    
-    // Just for debugging
-    console.log(`hideParameterVisualization called for type: ${type}, but ignoring to keep visualizations visible`);
-    
-    // We're intentionally not doing anything here to keep the visualizations visible
+    console.log(`hideParameterVisualization called for type: ${type}, but we keep visualizations visible now`);
+    // This function intentionally does nothing - we keep all visualizations visible
     return;
 }
 
